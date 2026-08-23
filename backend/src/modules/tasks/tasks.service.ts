@@ -219,7 +219,11 @@ export class TasksService {
   }
 
   async create(projectId: string, dto: CreateTaskDto, user: AuthenticatedUser) {
-    await this.verifyProjectAccess(projectId, user);
+    const project = await this.verifyProjectAccess(projectId, user);
+
+    if (project.status === 'ARCHIVED') {
+      throw new BadRequestException('Cannot create tasks on an archived project.');
+    }
 
     if (dto.startDate && dto.dueDate && new Date(dto.startDate) > new Date(dto.dueDate)) {
       throw new BadRequestException('Task start date cannot be later than due date.');

@@ -659,3 +659,553 @@ export interface ApiResponse<T> {
   meta?: PaginatedMeta;
   timestamp: string;
 }
+
+// ====================================================
+// PHASE 4 TYPES: Advanced Project Governance
+// ====================================================
+
+export type RiskProbability = 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+export type RiskImpact = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type RiskStatus = 'OPEN' | 'MONITORING' | 'MITIGATED' | 'ACCEPTED' | 'CLOSED';
+export type RiskCategory =
+  | 'TECHNICAL'
+  | 'SCHEDULE'
+  | 'RESOURCE'
+  | 'BUDGET'
+  | 'OPERATIONAL'
+  | 'EXTERNAL'
+  | 'OTHER';
+
+export interface Risk {
+  id: string;
+  projectId: string;
+  riskNumber: number;
+  title: string;
+  description?: string | null;
+  category: RiskCategory;
+  status: RiskStatus;
+  probability: RiskProbability;
+  impact: RiskImpact;
+  riskScore: number;
+  ownerId: string;
+  owner?: { id: string; firstName: string; lastName: string; email: string; avatarUrl?: string | null };
+  identifiedDate: string;
+  reviewDate?: string | null;
+  mitigationPlan?: string | null;
+  contingencyPlan?: string | null;
+  createdById: string;
+  createdBy?: { id: string; firstName: string; lastName: string };
+  issues?: Issue[];
+  attachments?: Document[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RiskMatrixCell {
+  score: number;
+  level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  count: number;
+  risks: Risk[];
+}
+
+export interface RiskMatrixData {
+  matrix: Record<string, Record<string, RiskMatrixCell>>;
+  summary: {
+    totalRisks: number;
+    openRisks: number;
+    highRisks: number;
+    mitigatedRisks: number;
+    closedRisks: number;
+  };
+}
+
+export type IssueType =
+  | 'TECHNICAL'
+  | 'BLOCKER'
+  | 'DEPENDENCY'
+  | 'RESOURCE'
+  | 'SCOPE'
+  | 'QUALITY'
+  | 'OTHER';
+export type IssueSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type IssuePriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type IssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+
+export interface Issue {
+  id: string;
+  projectId: string;
+  issueNumber: number;
+  title: string;
+  description?: string | null;
+  type: IssueType;
+  severity: IssueSeverity;
+  priority: IssuePriority;
+  status: IssueStatus;
+  reportedById: string;
+  reportedBy?: { id: string; firstName: string; lastName: string; email: string };
+  ownerId?: string | null;
+  owner?: { id: string; firstName: string; lastName: string; email?: string; avatarUrl?: string | null } | null;
+  milestoneId?: string | null;
+  milestone?: { id: string; name: string } | null;
+  taskId?: string | null;
+  task?: { id: string; taskNumber: number; title: string } | null;
+  riskId?: string | null;
+  risk?: { id: string; riskNumber: number; title: string } | null;
+  reportedDate: string;
+  dueDate?: string | null;
+  resolvedDate?: string | null;
+  resolution?: string | null;
+  attachments?: Document[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HealthDimension {
+  status: ProjectHealth;
+  score: number;
+  summary: string;
+  details: Record<string, any>;
+}
+
+export interface ProjectHealthReport {
+  projectId: string;
+  projectName: string;
+  projectCode: string;
+  overallHealth: ProjectHealth;
+  calculatedHealth: ProjectHealth;
+  isOverridden: boolean;
+  overrideDetails?: {
+    reason: string | null;
+    overriddenBy: { id: string; firstName: string; lastName: string } | null;
+    overriddenAt: string | null;
+  };
+  dimensions: {
+    schedule: HealthDimension;
+    scope: HealthDimension;
+    resources: HealthDimension;
+    risks: HealthDimension;
+    issues: HealthDimension;
+  };
+  calculatedAt: string;
+}
+
+export type ChangeRequestType =
+  | 'SCOPE'
+  | 'SCHEDULE'
+  | 'RESOURCE'
+  | 'TECHNICAL'
+  | 'REQUIREMENT'
+  | 'OTHER';
+
+export type ChangeRequestStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'IMPLEMENTED'
+  | 'CANCELLED';
+
+export interface ChangeRequest {
+  id: string;
+  projectId: string;
+  requestNumber: number;
+  title: string;
+  description: string;
+  type: ChangeRequestType;
+  status: ChangeRequestStatus;
+  reason: string;
+  impactSummary?: string | null;
+  scheduleImpactDays?: number | null;
+  costImpact?: string | null;
+  resourceImpact?: string | null;
+  scopeImpact?: string | null;
+  riskImpact?: string | null;
+  requestedById: string;
+  requestedBy?: { id: string; firstName: string; lastName: string; email?: string; avatarUrl?: string | null };
+  requestedAt: string;
+  approvedById?: string | null;
+  approvedBy?: { id: string; firstName: string; lastName: string } | null;
+  approvedAt?: string | null;
+  rejectedById?: string | null;
+  rejectedBy?: { id: string; firstName: string; lastName: string } | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+  approvalRequests?: ApprovalRequest[];
+  attachments?: Document[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+export type ApprovalEntityType = 'CHANGE_REQUEST' | 'TIMESHEET' | 'PROJECT_CLOSURE';
+
+export interface ApprovalStep {
+  id: string;
+  approvalRequestId: string;
+  stepOrder: number;
+  approverRoleId?: string | null;
+  approverUserId?: string | null;
+  approverUser?: { id: string; firstName: string; lastName: string; email: string } | null;
+  status: ApprovalStatus;
+  actionById?: string | null;
+  actionBy?: { id: string; firstName: string; lastName: string } | null;
+  actionAt?: string | null;
+  comments?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApprovalRequest {
+  id: string;
+  entityType: ApprovalEntityType;
+  entityId: string;
+  projectId?: string | null;
+  project?: { id: string; name: string; code: string } | null;
+  changeRequestId?: string | null;
+  changeRequest?: ChangeRequest | null;
+  requestedById: string;
+  requestedBy?: { id: string; firstName: string; lastName: string; email: string; avatarUrl?: string | null };
+  status: ApprovalStatus;
+  currentStep: number;
+  totalSteps: number;
+  steps: ApprovalStep[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskTemplate {
+  id: string;
+  templateId?: string | null;
+  milestoneTemplateId?: string | null;
+  title: string;
+  description?: string | null;
+  priority: TaskPriority;
+  estimatedHours?: number | null;
+  defaultRole?: string | null;
+  orderIndex: number;
+  targetDayOffset: number;
+  checklist?: string[] | null;
+  isStandalone: boolean;
+  createdAt?: string;
+}
+
+export interface MilestoneTemplate {
+  id: string;
+  templateId: string;
+  name: string;
+  description?: string | null;
+  orderIndex: number;
+  targetDayOffset: number;
+  tasks: TaskTemplate[];
+}
+
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  estimatedDurationDays: number;
+  defaultRoles: string[];
+  isSystem: boolean;
+  milestones?: MilestoneTemplate[];
+  tasks?: TaskTemplate[];
+  createdBy?: { id: string; firstName: string; lastName: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RecurrenceFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
+
+export interface RecurringTaskDefinition {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string | null;
+  priority: TaskPriority;
+  estimatedHours?: number | null;
+  milestoneId?: string | null;
+  milestone?: { id: string; name: string } | null;
+  assigneeIds: string[];
+  frequency: RecurrenceFrequency;
+  interval: number;
+  daysOfWeek: number[];
+  dayOfMonth?: number | null;
+  startDate: string;
+  endDate?: string | null;
+  nextRunDate: string;
+  lastGeneratedDate?: string | null;
+  isActive: boolean;
+  timezone: string;
+  createdBy?: { id: string; firstName: string; lastName: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectBaselineSnapshot {
+  id: string;
+  baselineId: string;
+  totalTasks: number;
+  totalMilestones: number;
+  totalEstimatedHours: number;
+  plannedStartDate?: string | null;
+  plannedEndDate?: string | null;
+  snapshotData: Record<string, any>;
+  createdAt: string;
+}
+
+export interface ProjectBaseline {
+  id: string;
+  projectId: string;
+  baselineNumber: number;
+  name: string;
+  description?: string | null;
+  createdById: string;
+  createdBy?: { id: string; firstName: string; lastName: string; email?: string };
+  snapshot?: ProjectBaselineSnapshot | null;
+  createdAt: string;
+}
+
+export interface BaselineComparisonData {
+  baseline: {
+    id: string;
+    number: number;
+    name: string;
+    createdAt: string;
+    plannedStartDate?: string | null;
+    plannedEndDate?: string | null;
+    estimatedHours: number;
+    totalTasks: number;
+    totalMilestones: number;
+  };
+  current: {
+    startDate?: string | null;
+    targetDate?: string | null;
+    estimatedHours: number;
+    totalTasks: number;
+    totalMilestones: number;
+  };
+  variance: {
+    scheduleVarianceDays: number;
+    effortVarianceHours: number;
+    taskCountVariance: number;
+    milestoneCountVariance: number;
+  };
+}
+
+export interface ProjectClosureCheckResult {
+  projectId: string;
+  projectName: string;
+  canArchive: boolean;
+  blockersCount: number;
+  warningsCount: number;
+  checks: {
+    uncompletedTasks: { passed: boolean; count: number; items: { id: string; title: string; status: string }[] };
+    criticalIssues: { passed: boolean; count: number; items: { id: string; title: string; severity: string }[] };
+    pendingApprovals: { passed: boolean; count: number; items: { id: string; entityType: string; status: string }[] };
+    openHighRisks: { passed: boolean; count: number; items: { id: string; title: string; score: number }[] };
+    unsubmittedTimesheets: { passed: boolean; count: number; items: { id: string; user: string; status: string }[] };
+  };
+}
+
+// =========================================================================
+// Phase 5 Project Financial Management Types (SUPER ADMIN ONLY)
+// =========================================================================
+
+export type ExpenseCategory =
+  | 'TEAM_MEMBER_PAYMENT'
+  | 'FREELANCER_PAYMENT'
+  | 'DESIGNER_PAYMENT'
+  | 'DEVELOPER_PAYMENT'
+  | 'SOFTWARE_TOOLS'
+  | 'INFRASTRUCTURE'
+  | 'MARKETING'
+  | 'OTHER';
+
+export type PaymentMethod =
+  | 'UPI'
+  | 'BANK_TRANSFER'
+  | 'CREDIT_CARD'
+  | 'CASH'
+  | 'CHEQUE'
+  | 'OTHER';
+
+export interface ProjectFinancial {
+  id: string;
+  projectId: string;
+  currency: string;
+  projectValue: number;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
+export interface ClientPayment {
+  id: string;
+  projectId: string;
+  amount: number;
+  paymentDate: string;
+  paymentMethod: PaymentMethod;
+  referenceNumber?: string | null;
+  notes?: string | null;
+  createdById: string;
+  createdBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
+export interface ProjectExpense {
+  id: string;
+  projectId: string;
+  category: ExpenseCategory;
+  userId?: string | null;
+  user?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    avatarUrl?: string | null;
+  } | null;
+  amount: number;
+  paymentDate: string;
+  paymentMethod?: PaymentMethod | null;
+  referenceNumber?: string | null;
+  description: string;
+  receiptUrl?: string | null;
+  createdById: string;
+  createdBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
+export interface ProjectFinancialMetrics {
+  currency: string;
+  projectValue: number;
+  totalReceived: number;
+  remainingAmount: number;
+  totalExpenses: number;
+  currentCashPosition: number;
+  expectedProfit: number;
+  totalTeamMemberPayments: number;
+  isFullyPaid: boolean;
+}
+
+export interface ProjectFinancialResponse {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  projectStatus: ProjectStatus;
+  client?: {
+    id: string;
+    name: string;
+    companyName: string;
+  } | null;
+  financialSettings?: ProjectFinancial | null;
+  metrics: ProjectFinancialMetrics;
+  clientPayments: ClientPayment[];
+  projectExpenses: ProjectExpense[];
+}
+
+export interface GlobalFinancialMetrics {
+  totalProjectValue: number;
+  totalReceived: number;
+  totalPending: number;
+  totalExpenses: number;
+  totalCashPosition: number;
+  totalExpectedProfit: number;
+  totalProjects: number;
+  projectsWithFinances: number;
+}
+
+export interface ProjectFinancialSummaryRow {
+  id: string;
+  code: string;
+  name: string;
+  status: ProjectStatus;
+  client?: {
+    id: string;
+    name: string;
+    companyName: string;
+  } | null;
+  currency: string;
+  projectValue: number;
+  received: number;
+  pending: number;
+  expenses: number;
+  currentCash: number;
+  expectedProfit: number;
+  paymentCount: number;
+  expenseCount: number;
+  isFullyPaid: boolean;
+}
+
+export interface FinanceDashboardResponse {
+  metrics: GlobalFinancialMetrics;
+  projects: ProjectFinancialSummaryRow[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalItems: number;
+    totalPages: number;
+  };
+}
+
+export interface TeamMemberPaymentBreakdown {
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    avatarUrl?: string | null;
+  };
+  totalPaid: number;
+  expenseCount: number;
+  projects: {
+    projectId: string;
+    projectCode: string;
+    projectName: string;
+    totalAmount: number;
+    expenseCount: number;
+    lastPaymentDate: string;
+  }[];
+}
+
+export interface TeamMemberPaymentsResponse {
+  grandTotal: number;
+  totalMembers: number;
+  members: TeamMemberPaymentBreakdown[];
+}
+
+export interface FinancialAuditLog {
+  id: string;
+  actorId: string;
+  actor: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  action: string;
+  entityType: string;
+  entityId: string;
+  projectId?: string | null;
+  previousValues?: any;
+  newValues?: any;
+  reason?: string | null;
+  createdAt: string;
+}
+
+

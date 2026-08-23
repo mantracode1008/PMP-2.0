@@ -21,6 +21,12 @@ import {
   Clock,
   FileSpreadsheet,
   BarChart3,
+  FolderKanban,
+  FileCheck2,
+  DollarSign,
+  FileText,
+  CreditCard,
+  Flag,
 } from 'lucide-react';
 
 interface NavItem {
@@ -29,7 +35,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   permission?: string;
   role?: string;
-  section?: 'main' | 'admin' | 'settings';
+  section?: 'main' | 'admin' | 'finance' | 'settings';
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -37,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'My Work', href: '/my-work', icon: CheckSquare, section: 'main' },
   { label: 'My Timesheets', href: '/my-timesheets', icon: Clock, section: 'main' },
   { label: 'Projects', href: '/projects', icon: Briefcase, permission: 'projects.read', section: 'main' },
+  { label: 'Templates', href: '/templates', icon: FolderKanban, permission: 'templates.read', section: 'main' },
   { label: 'Clients', href: '/clients', icon: Building2, permission: 'clients.read', section: 'main' },
   { label: 'Teams', href: '/teams', icon: Users2, permission: 'teams.read', section: 'main' },
   { label: 'Departments', href: '/departments', icon: Building, permission: 'departments.read', section: 'main' },
@@ -46,6 +53,10 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Timesheets', href: '/timesheets', icon: FileSpreadsheet, permission: 'timesheets.approve', section: 'admin' },
   { label: 'Users', href: '/users', icon: UserCheck, permission: 'users.read', section: 'admin' },
   { label: 'Roles & Access', href: '/roles', icon: ShieldCheck, permission: 'roles.read', section: 'admin' },
+
+  // Finance Section (Super Admin Only)
+  { label: 'Finance Dashboard', href: '/finance', icon: DollarSign, permission: 'finance.read', section: 'finance' },
+  { label: 'Team Member Payments', href: '/finance/team-members', icon: Users2, permission: 'finance.read', section: 'finance' },
 
   // Settings Section
   { label: 'Profile', href: '/profile', icon: User, section: 'settings' },
@@ -57,12 +68,14 @@ export function Sidebar() {
   const { user, hasPermission, isSuperAdmin, logout } = useAuth();
 
   const isVisible = (item: NavItem) => {
-    if (item.permission && !hasPermission(item.permission)) return false;
+    if (item.section === 'finance' && !isSuperAdmin && !hasPermission('finance.read')) return false;
+    if (item.permission && !hasPermission(item.permission) && !isSuperAdmin) return false;
     return true;
   };
 
   const mainItems = NAV_ITEMS.filter((i) => i.section === 'main' && isVisible(i));
   const adminItems = NAV_ITEMS.filter((i) => i.section === 'admin' && isVisible(i));
+  const financeItems = NAV_ITEMS.filter((i) => i.section === 'finance' && isVisible(i));
   const settingItems = NAV_ITEMS.filter((i) => i.section === 'settings' && isVisible(i));
 
   return (
@@ -119,6 +132,36 @@ export function Sidebar() {
                 {adminItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href || pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                      )}
+                    >
+                      <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-indigo-600' : 'text-slate-400')} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          )}
+
+          {/* Finance Navigation (Super Admin) */}
+          {financeItems.length > 0 && (
+            <div>
+              <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                Finance & Revenue
+              </p>
+              <nav className="space-y-1">
+                {financeItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href || (item.href !== '/finance' && pathname.startsWith(item.href));
                   return (
                     <Link
                       key={item.href}

@@ -23,6 +23,16 @@ import { TimesheetsModule } from './modules/timesheets/timesheets.module';
 import { WorkloadModule } from './modules/workload/workload.module';
 import { ProjectPlanningModule } from './modules/project-planning/project-planning.module';
 import { HealthModule } from './modules/health/health.module';
+import { RisksModule } from './modules/risks/risks.module';
+import { IssuesModule } from './modules/issues/issues.module';
+import { ProjectHealthModule } from './modules/project-health/project-health.module';
+import { ApprovalsModule } from './modules/approvals/approvals.module';
+import { ChangeRequestsModule } from './modules/change-requests/change-requests.module';
+import { TemplatesModule } from './modules/templates/templates.module';
+import { RecurringTasksModule } from './modules/recurring-tasks/recurring-tasks.module';
+import { BaselinesModule } from './modules/baselines/baselines.module';
+import { ProjectArchiveModule } from './modules/project-archive/project-archive.module';
+import { FinanceModule } from './modules/finance/finance.module';
 
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -57,6 +67,16 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     WorkloadModule,
     ProjectPlanningModule,
     HealthModule,
+    RisksModule,
+    IssuesModule,
+    ProjectHealthModule,
+    ApprovalsModule,
+    ChangeRequestsModule,
+    TemplatesModule,
+    RecurringTasksModule,
+    BaselinesModule,
+    ProjectArchiveModule,
+    FinanceModule,
   ],
   providers: [
     {

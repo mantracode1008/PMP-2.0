@@ -31,10 +31,22 @@ import {
   Flag,
   Files,
   Activity,
+  DollarSign,
 } from 'lucide-react';
-import { ApiResponse, Milestone, Project, ProjectHealth, ProjectMemberRole, ProjectStatus, Task, TaskStatus, User as UserType } from '../../../../types';
+import {
+  ApiResponse,
+  Milestone,
+  Project,
+  ProjectHealth,
+  ProjectMemberRole,
+  ProjectStatus,
+  Task,
+  TaskStatus,
+  User as UserType,
+  ProjectFinancialResponse,
+} from '../../../../types';
 
-// Phase 2 Workspace Features
+// Workspace Features
 import { TaskListView } from '../../../../features/tasks/task-list-view';
 import { TaskKanbanBoard } from '../../../../features/tasks/task-kanban-board';
 import { TaskFormDialog } from '../../../../features/tasks/task-form-dialog';
@@ -45,35 +57,35 @@ import { DocumentListView } from '../../../../features/documents/document-list-v
 import { DocumentUploadDialog } from '../../../../features/documents/document-upload-dialog';
 import { ActivityTimelineView } from '../../../../features/activity/activity-timeline-view';
 
-// Phase 3 Planning & Time Features
+// Planning & Time Features
 import { GanttChartView } from '../../../../features/planning/gantt-chart-view';
 import { ProjectCalendarView } from '../../../../features/planning/project-calendar-view';
 import { ProjectTimeSummaryWidget } from '../../../../features/planning/project-time-summary-widget';
+
+// Financial Features
+import { ProjectFinancialsTab } from '../../../../features/finance';
 
 type WorkspaceTab =
   | 'overview'
   | 'tasks'
   | 'board'
   | 'timeline'
-  | 'calendar'
-  | 'time-tracking'
   | 'milestones'
-  | 'documents'
-  | 'activity';
+  | 'financials'
+  | 'documents';
 
 export default function ProjectWorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const { hasPermission } = useAuth();
+  const { user, hasPermission, isSuperAdmin } = useAuth();
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('tasks');
 
   // Modals & Drawers
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
-  const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
 
   // Task Drawer & Dialog states
@@ -112,6 +124,7 @@ export default function ProjectWorkspacePage() {
   const canManageMembers = hasPermission('projects.manage_members');
   const canDelete = hasPermission('projects.delete');
   const canCreateTask = hasPermission('tasks.create');
+  const canArchive = hasPermission('projects.archive');
 
   // Project query
   const { data: project, isLoading } = useQuery({
@@ -128,6 +141,61 @@ export default function ProjectWorkspacePage() {
       return data;
     },
   });
+
+  // Financials Queries (Super Admin / authorized only)
+  const canAccessFinancials = isSuperAdmin || hasPermission('finance.read');
+  const canManageFinancials = isSuperAdmin || hasPermission('finance.manage');
+
+  const { data: projectFinancialsData, isLoading: isFinancialsLoading } = useQuery({
+    queryKey: ['project-financials', id],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<ProjectFinancialResponse>>(`/projects/${id}/financials`);
+      return res.data.data;
+    },
+    enabled: !!id && canAccessFinancials && activeTab === 'financials',
+  });
+
+  const handleSetProjectValue = async (data: { projectValue: number; currency: string }) => {
+    await api.post(`/projects/${id}/financials`, data);
+    queryClient.invalidateQueries({ queryKey: ['project-financials', id] });
+    showToast('Success', 'Project financial value updated.', 'success');
+  };
+
+  const handleAddPayment = async (data: any) => {
+    await api.post(`/projects/${id}/payments`, data);
+    queryClient.invalidateQueries({ queryKey: ['project-financials', id] });
+    showToast('Success', 'Client payment recorded successfully.', 'success');
+  };
+
+  const handleUpdatePayment = async (paymentId: string, data: any) => {
+    await api.patch(`/projects/${id}/payments/${paymentId}`, data);
+    queryClient.invalidateQueries({ queryKey: ['project-financials', id] });
+    showToast('Success', 'Client payment updated.', 'success');
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    await api.delete(`/projects/${id}/payments/${paymentId}`);
+    queryClient.invalidateQueries({ queryKey: ['project-financials', id] });
+    showToast('Success', 'Client payment deleted.', 'success');
+  };
+
+  const handleAddExpense = async (data: any) => {
+    await api.post(`/projects/${id}/expenses`, data);
+    queryClient.invalidateQueries({ queryKey: ['project-financials', id] });
+    showToast('Success', 'Project expense recorded.', 'success');
+  };
+
+  const handleUpdateExpense = async (expenseId: string, data: any) => {
+    await api.patch(`/projects/${id}/expenses/${expenseId}`, data);
+    queryClient.invalidateQueries({ queryKey: ['project-financials', id] });
+    showToast('Success', 'Project expense updated.', 'success');
+  };
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    await api.delete(`/projects/${id}/expenses/${expenseId}`);
+    queryClient.invalidateQueries({ queryKey: ['project-financials', id] });
+    showToast('Success', 'Project expense deleted.', 'success');
+  };
 
   // Tasks query
   const { data: tasksData, isLoading: isTasksLoading } = useQuery({
@@ -150,7 +218,7 @@ export default function ProjectWorkspacePage() {
   const { data: milestonesData, isLoading: isMilestonesLoading } = useQuery({
     queryKey: ['milestones', id],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<Milestone[]>>(`/projects/${id}/milestones?limit=50`);
+      const res = await api.get<ApiResponse<Milestone[]>>(`/projects/${id}/milestones`);
       return res.data.data;
     },
   });
@@ -159,91 +227,89 @@ export default function ProjectWorkspacePage() {
   const { data: documentsData, isLoading: isDocsLoading } = useQuery({
     queryKey: ['documents', id],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<any>>(`/projects/${id}/documents`);
+      const res = await api.get<ApiResponse<any[]>>(`/projects/${id}/documents`);
       return res.data.data;
     },
   });
 
-  // Users query for assign member modal
+  // All Users query
   const { data: allUsers } = useQuery({
-    queryKey: ['all-users-assignable'],
+    queryKey: ['users-for-members'],
     queryFn: async () => {
       const res = await api.get<ApiResponse<UserType[]>>('/users?limit=100');
       return res.data.data;
     },
-    enabled: isAddMemberOpen,
   });
 
-  // Update Project Mutation
+  // Mutations
   const updateMutation = useMutation({
     mutationFn: async () => {
-      await api.patch(`/projects/${id}`, {
+      return api.patch(`/projects/${id}`, {
         name: editName,
         description: editDescription || undefined,
         status: editStatus,
         health: editHealth,
-        startDate: editStartDate ? new Date(editStartDate).toISOString() : null,
-        targetDate: editTargetDate ? new Date(editTargetDate).toISOString() : null,
+        startDate: editStartDate ? new Date(editStartDate).toISOString() : undefined,
+        targetDate: editTargetDate ? new Date(editTargetDate).toISOString() : undefined,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', id] });
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      showToast('Success', 'Project updated successfully.', 'success');
       setIsEditOpen(false);
+      showToast('Success', 'Project details updated.', 'success');
     },
     onError: (err: any) => {
       showToast('Error', err.response?.data?.message || 'Failed to update project.', 'error');
     },
   });
 
-  // Add Member Mutation
   const addMemberMutation = useMutation({
     mutationFn: async () => {
-      await api.post(`/projects/${id}/members`, {
+      return api.post(`/projects/${id}/members`, {
         userId: newMemberId,
         projectRole: newMemberRole,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', id] });
-      showToast('Success', 'Member added to project.', 'success');
       setIsAddMemberOpen(false);
       setNewMemberId('');
+      showToast('Success', 'Team member assigned.', 'success');
     },
     onError: (err: any) => {
-      showToast('Error', err.response?.data?.message || 'Failed to add member.', 'error');
+      showToast('Error', err.response?.data?.message || 'Failed to assign member.', 'error');
     },
   });
 
-  // Remove Member Mutation
   const removeMemberMutation = useMutation({
     mutationFn: async (userId: string) => {
-      await api.delete(`/projects/${id}/members/${userId}`);
+      return api.delete(`/projects/${id}/members/${userId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', id] });
-      showToast('Success', 'Member removed from project.', 'success');
       setMemberToRemove(null);
+      showToast('Success', 'Member unassigned.', 'success');
     },
     onError: (err: any) => {
       showToast('Error', err.response?.data?.message || 'Failed to remove member.', 'error');
     },
   });
 
-  // Archive Project Mutation
-  const archiveMutation = useMutation({
-    mutationFn: async () => {
-      await api.delete(`/projects/${id}`);
-    },
-    onSuccess: () => {
-      showToast('Success', 'Project archived.', 'success');
-      router.push('/projects');
-    },
-    onError: (err: any) => {
+  const handleArchiveProject = async () => {
+    try {
+      await api.post(`/projects/${id}/archive`, { reason: 'Archived from project workspace', policy: 'ALLOW' });
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
+      showToast('Success', 'Project archived and locked in read-only mode.', 'success');
+    } catch (err: any) {
       showToast('Error', err.response?.data?.message || 'Failed to archive project.', 'error');
-    },
-  });
+    }
+  };
+
+  const handleRestoreProject = async () => {
+    await api.post(`/projects/${id}/restore`);
+    queryClient.invalidateQueries({ queryKey: ['project', id] });
+    showToast('Success', 'Project restored to active state.', 'success');
+  };
 
   if (isLoading || !project) {
     return (
@@ -278,7 +344,24 @@ export default function ProjectWorkspacePage() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150">
+    <div className="space-y-6">
+      {/* Archive Notification Banner */}
+      {project.status === 'ARCHIVED' && (
+        <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="font-bold">Project Archived</span>
+            <p className="text-xs text-amber-700 mt-0.5">
+              This project is currently locked in read-only archive mode.
+            </p>
+          </div>
+          {canArchive && (
+            <Button size="sm" variant="outline" onClick={handleRestoreProject} className="border-amber-300 hover:bg-amber-100">
+              Restore Project
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Workspace Header */}
       <PageHeader
         title={project.name}
@@ -290,24 +373,24 @@ export default function ProjectWorkspacePage() {
         ]}
         action={
           <div className="flex items-center gap-2">
-            {canCreateTask && (
+            {project.status !== 'ARCHIVED' && canCreateTask && (
               <Button size="sm" onClick={() => handleOpenCreateTask()}>
                 <Plus className="mr-1.5 h-4 w-4" /> New Task
               </Button>
             )}
-            {canUpdate && (
+            {project.status !== 'ARCHIVED' && canUpdate && (
               <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)}>
                 <Edit2 className="mr-1.5 h-3.5 w-3.5" /> Edit Project
               </Button>
             )}
-            {canDelete && (
+            {project.status !== 'ARCHIVED' && canArchive && (
               <Button
                 variant="outline"
                 size="sm"
-                className="text-rose-600 border-rose-200 hover:bg-rose-50"
-                onClick={() => setIsArchiveConfirmOpen(true)}
+                className="text-amber-600 border-amber-200 hover:bg-amber-50"
+                onClick={handleArchiveProject}
               >
-                <Archive className="mr-1.5 h-3.5 w-3.5" />
+                <Archive className="mr-1.5 h-3.5 w-3.5" /> Archive Project
               </Button>
             )}
           </div>
@@ -350,7 +433,7 @@ export default function ProjectWorkspacePage() {
               </span>
             ))}
           </div>
-          {canManageMembers && (
+          {project.status !== 'ARCHIVED' && canManageMembers && (
             <Button
               variant="outline"
               size="sm"
@@ -397,32 +480,8 @@ export default function ProjectWorkspacePage() {
               : 'border-transparent text-slate-500 hover:text-slate-900'
           }`}
         >
-          <Calendar className="h-4 w-4" />
-          Timeline & Gantt
-        </button>
-
-        <button
-          onClick={() => setActiveTab('calendar')}
-          className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors border-b-2 ${
-            activeTab === 'calendar'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <Calendar className="h-4 w-4" />
-          Calendar
-        </button>
-
-        <button
-          onClick={() => setActiveTab('time-tracking')}
-          className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors border-b-2 ${
-            activeTab === 'time-tracking'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <Calendar className="h-4 w-4" />
-          Time & Progress
+          <LayoutGrid className="h-4 w-4" />
+          Gantt & Timeline
         </button>
 
         <button
@@ -437,6 +496,20 @@ export default function ProjectWorkspacePage() {
           Milestones ({milestonesData?.length || 0})
         </button>
 
+        {canAccessFinancials && (
+          <button
+            onClick={() => setActiveTab('financials')}
+            className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors border-b-2 ${
+              activeTab === 'financials'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <DollarSign className="h-4 w-4" />
+            Financials
+          </button>
+        )}
+
         <button
           onClick={() => setActiveTab('documents')}
           className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors border-b-2 ${
@@ -450,18 +523,6 @@ export default function ProjectWorkspacePage() {
         </button>
 
         <button
-          onClick={() => setActiveTab('activity')}
-          className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors border-b-2 ${
-            activeTab === 'activity'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <Activity className="h-4 w-4" />
-          Activity Stream
-        </button>
-
-        <button
           onClick={() => setActiveTab('overview')}
           className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors border-b-2 ${
             activeTab === 'overview'
@@ -469,26 +530,20 @@ export default function ProjectWorkspacePage() {
               : 'border-transparent text-slate-500 hover:text-slate-900'
           }`}
         >
-          <LayoutGrid className="h-4 w-4" />
-          Overview & Team
+          <Activity className="h-4 w-4" />
+          Project Overview
         </button>
       </div>
-
-      {/* TAB CONTENT */}
 
       {/* 1. Tasks List Tab */}
       {activeTab === 'tasks' && (
         <TaskListView
+          projectId={id}
           tasks={tasksData?.data || []}
           meta={tasksData?.meta}
           isLoading={isTasksLoading}
-          projectId={id}
-          milestones={milestonesData}
+          page={taskPage}
           search={taskSearch}
-          onSearchChange={(val) => {
-            setTaskSearch(val);
-            setTaskPage(1);
-          }}
           statusFilter={taskStatusFilter}
           onStatusFilterChange={(val) => {
             setTaskStatusFilter(val);
@@ -504,10 +559,14 @@ export default function ProjectWorkspacePage() {
             setTaskMilestoneFilter(val);
             setTaskPage(1);
           }}
-          page={taskPage}
+          onSearchChange={(val) => {
+            setTaskSearch(val);
+            setTaskPage(1);
+          }}
           onPageChange={setTaskPage}
           onTaskClick={(t) => setSelectedDrawerTaskId(t.id)}
-          onAddTask={() => handleOpenCreateTask('TODO')}
+          onAddTask={() => handleOpenCreateTask()}
+          milestones={milestonesData || []}
         />
       )}
 
@@ -523,26 +582,44 @@ export default function ProjectWorkspacePage() {
 
       {/* 3. Gantt & Timeline Tab */}
       {activeTab === 'timeline' && (
-        <GanttChartView
-          projectId={id}
-          onSelectTask={(taskId) => setSelectedDrawerTaskId(taskId)}
-        />
+        <div className="space-y-6">
+          <GanttChartView
+            projectId={id}
+            onSelectTask={(taskId) => setSelectedDrawerTaskId(taskId)}
+          />
+          <ProjectTimeSummaryWidget projectId={id} />
+        </div>
       )}
 
-      {/* 4. Project Calendar Tab */}
-      {activeTab === 'calendar' && (
-        <ProjectCalendarView
-          projectId={id}
-          onSelectTask={(taskId) => setSelectedDrawerTaskId(taskId)}
-        />
+      {/* 4. Financials Tab (Super Admin / authorized) */}
+      {activeTab === 'financials' && canAccessFinancials && (
+        isFinancialsLoading || !projectFinancialsData ? (
+          <div className="flex h-64 items-center justify-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+          </div>
+        ) : (
+          <ProjectFinancialsTab
+            financialData={projectFinancialsData}
+            teamMembers={
+              project?.members?.map((m: any) => ({
+                id: m.user.id,
+                name: `${m.user.firstName} ${m.user.lastName}`,
+                email: m.user.email,
+              })) || []
+            }
+            onSetProjectValue={handleSetProjectValue}
+            onAddPayment={handleAddPayment}
+            onUpdatePayment={handleUpdatePayment}
+            onDeletePayment={handleDeletePayment}
+            onAddExpense={handleAddExpense}
+            onUpdateExpense={handleUpdateExpense}
+            onDeleteExpense={handleDeleteExpense}
+            canManage={canManageFinancials}
+          />
+        )
       )}
 
-      {/* 5. Time & Progress Tracking Tab */}
-      {activeTab === 'time-tracking' && (
-        <ProjectTimeSummaryWidget projectId={id} />
-      )}
-
-      {/* 6. Milestones Tab */}
+      {/* 5. Milestones Tab */}
       {activeTab === 'milestones' && (
         <MilestoneListView
           milestones={milestonesData || []}
@@ -553,7 +630,7 @@ export default function ProjectWorkspacePage() {
         />
       )}
 
-      {/* 4. Documents Tab */}
+      {/* 6. Documents Tab */}
       {activeTab === 'documents' && (
         <DocumentListView
           documents={documentsData || []}
@@ -563,10 +640,7 @@ export default function ProjectWorkspacePage() {
         />
       )}
 
-      {/* 5. Activity Stream Tab */}
-      {activeTab === 'activity' && <ActivityTimelineView projectId={id} />}
-
-      {/* 6. Overview Tab */}
+      {/* 7. Overview Tab */}
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
@@ -627,7 +701,7 @@ export default function ProjectWorkspacePage() {
                   <CardTitle className="text-base">Project Team</CardTitle>
                   <CardDescription>{project.members?.length || 0} assigned members</CardDescription>
                 </div>
-                {canManageMembers && (
+                {project.status !== 'ARCHIVED' && canManageMembers && (
                   <Button size="sm" variant="outline" className="h-8" onClick={() => setIsAddMemberOpen(true)}>
                     <Plus className="h-3.5 w-3.5 mr-1" /> Add
                   </Button>
@@ -647,24 +721,21 @@ export default function ProjectWorkspacePage() {
                         <p className="text-xs font-semibold text-slate-900 truncate">
                           {member.user.firstName} {member.user.lastName}
                         </p>
-                        <p className="text-[10px] text-slate-400 truncate">{member.user.email}</p>
+                        <span className="text-[10px] font-medium text-slate-400">
+                          {member.projectRole}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">
-                        {member.projectRole}
-                      </span>
-                      {canManageMembers && project.ownerId !== member.user.id && (
-                        <button
-                          onClick={() => setMemberToRemove(member.user.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                          title="Remove member"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
+                    {project.status !== 'ARCHIVED' && canManageMembers && project.ownerId !== member.user.id && (
+                      <button
+                        onClick={() => setMemberToRemove(member.user.id)}
+                        className="text-slate-400 hover:text-rose-600 p-1 transition-colors"
+                        title="Remove member"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 ))}
               </CardContent>
@@ -711,7 +782,12 @@ export default function ProjectWorkspacePage() {
       />
 
       {/* Edit Project Modal */}
-      <Dialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Project Details" maxWidth="lg">
+      <Dialog
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        title="Edit Project Details"
+        description="Update project name, timeline, lifecycle status, and operational health."
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -726,10 +802,14 @@ export default function ProjectWorkspacePage() {
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
-            <Textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={3} />
+            <Textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              rows={3}
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
               <Select value={editStatus} onChange={(e) => setEditStatus(e.target.value as ProjectStatus)}>
@@ -742,7 +822,7 @@ export default function ProjectWorkspacePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Health State</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Health</label>
               <Select value={editHealth} onChange={(e) => setEditHealth(e.target.value as ProjectHealth)}>
                 <option value="HEALTHY">Healthy</option>
                 <option value="AT_RISK">At Risk</option>
@@ -751,23 +831,31 @@ export default function ProjectWorkspacePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Start Date</label>
-              <Input type="date" value={editStartDate} onChange={(e) => setEditStartDate(e.target.value)} />
+              <Input
+                type="date"
+                value={editStartDate}
+                onChange={(e) => setEditStartDate(e.target.value)}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Target Date</label>
-              <Input type="date" value={editTargetDate} onChange={(e) => setEditTargetDate(e.target.value)} />
+              <Input
+                type="date"
+                value={editTargetDate}
+                onChange={(e) => setEditTargetDate(e.target.value)}
+              />
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsEditOpen(false)}>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={updateMutation.isPending}>
+            <Button type="submit" isLoading={updateMutation.isPending}>
               Save Changes
             </Button>
           </div>
@@ -775,7 +863,12 @@ export default function ProjectWorkspacePage() {
       </Dialog>
 
       {/* Add Member Modal */}
-      <Dialog isOpen={isAddMemberOpen} onClose={() => setIsAddMemberOpen(false)} title="Assign Team Member" maxWidth="sm">
+      <Dialog
+        isOpen={isAddMemberOpen}
+        onClose={() => setIsAddMemberOpen(false)}
+        title="Assign Team Member"
+        description="Add a staff member to this project and define their operational role."
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -790,7 +883,7 @@ export default function ProjectWorkspacePage() {
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Select User *</label>
             <Select value={newMemberId} onChange={(e) => setNewMemberId(e.target.value)} required>
-              <option value="">Choose team member...</option>
+              <option value="">Select staff member...</option>
               {availableUsers.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.firstName} {u.lastName} ({u.email})
@@ -800,20 +893,20 @@ export default function ProjectWorkspacePage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Role in Project</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Project Role</label>
             <Select value={newMemberRole} onChange={(e) => setNewMemberRole(e.target.value as ProjectMemberRole)}>
-              <option value="MEMBER">Member (Contributor)</option>
-              <option value="MANAGER">Manager (Coordinator)</option>
-              <option value="VIEWER">Viewer (Observer)</option>
+              <option value="LEAD">Project Lead</option>
+              <option value="MEMBER">Team Member</option>
+              <option value="VIEWER">Viewer (Read-only)</option>
             </Select>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsAddMemberOpen(false)}>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setIsAddMemberOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={addMemberMutation.isPending}>
-              Add to Project
+            <Button type="submit" isLoading={addMemberMutation.isPending}>
+              Assign Member
             </Button>
           </div>
         </form>
@@ -823,24 +916,16 @@ export default function ProjectWorkspacePage() {
       <ConfirmDialog
         isOpen={!!memberToRemove}
         onClose={() => setMemberToRemove(null)}
-        onConfirm={() => memberToRemove && removeMemberMutation.mutate(memberToRemove)}
-        title="Remove Project Member"
-        description="Are you sure you want to unassign this team member from the project?"
-        confirmLabel="Remove"
-        isDestructive
+        onConfirm={() => {
+          if (memberToRemove) {
+            removeMemberMutation.mutate(memberToRemove);
+          }
+        }}
+        title="Unassign Team Member"
+        description="Are you sure you want to remove this user from the project? They will lose workspace edit access."
+        confirmLabel="Remove Member"
+        isDestructive={true}
         isLoading={removeMemberMutation.isPending}
-      />
-
-      {/* Archive Project Confirmation */}
-      <ConfirmDialog
-        isOpen={isArchiveConfirmOpen}
-        onClose={() => setIsArchiveConfirmOpen(false)}
-        onConfirm={() => archiveMutation.mutate()}
-        title="Archive Project"
-        description="Are you sure you want to archive this project? It will be removed from active listings."
-        confirmLabel="Archive Project"
-        isDestructive
-        isLoading={archiveMutation.isPending}
       />
     </div>
   );

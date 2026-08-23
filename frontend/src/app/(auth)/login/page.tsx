@@ -103,43 +103,19 @@ export default function LoginPage() {
           <div className="mt-8 pt-6 border-t border-slate-100">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-3">
               <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-              <span>Quick Login (Demo Profiles)</span>
+              <span>Quick Login (Demo Profile)</span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div>
               <button
                 type="button"
                 onClick={() => handleQuickFill('admin@pmp.local', 'SuperAdmin123!')}
-                className="flex flex-col items-start p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 text-left transition-all group cursor-pointer"
+                className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 text-left transition-all group cursor-pointer"
               >
-                <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">Super Admin</span>
-                <span className="text-[10px] text-slate-400">admin@pmp.local</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('admin.user@pmp.local', 'Admin123!')}
-                className="flex flex-col items-start p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 text-left transition-all group cursor-pointer"
-              >
-                <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">Administrator</span>
-                <span className="text-[10px] text-slate-400">admin.user@pmp.local</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('john.doe@pmp.local', 'User123!')}
-                className="flex flex-col items-start p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 text-left transition-all group cursor-pointer"
-              >
-                <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">Developer (User)</span>
-                <span className="text-[10px] text-slate-400">john.doe@pmp.local</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('elena.rostova@pmp.local', 'User123!')}
-                className="flex flex-col items-start p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 text-left transition-all group cursor-pointer"
-              >
-                <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">Designer (User)</span>
-                <span className="text-[10px] text-slate-400">elena.rostova@pmp.local</span>
+                <div>
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700 block">Super Admin</span>
+                  <span className="text-[11px] text-slate-400">admin@pmp.local</span>
+                </div>
+                <span className="text-[11px] font-medium text-indigo-600 group-hover:underline">Auto-fill</span>
               </button>
             </div>
           </div>

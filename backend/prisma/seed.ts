@@ -100,6 +100,53 @@ const PERMISSIONS = [
   { code: 'workload.read', module: 'workload', action: 'read', description: 'View resource workload and capacity allocation' },
   { code: 'timeline.read', module: 'timeline', action: 'read', description: 'View project timeline and Gantt charts' },
   { code: 'progress.read', module: 'progress', action: 'read', description: 'View project progress metrics and history' },
+
+  // Risks (Phase 4)
+  { code: 'risks.create', module: 'risks', action: 'create', description: 'Create and register project risks' },
+  { code: 'risks.read', module: 'risks', action: 'read', description: 'View project risk register and risk matrix' },
+  { code: 'risks.update', module: 'risks', action: 'update', description: 'Update risk status, mitigation and contingency plans' },
+  { code: 'risks.delete', module: 'risks', action: 'delete', description: 'Archive or delete risks' },
+
+  // Issues (Phase 4)
+  { code: 'issues.create', module: 'issues', action: 'create', description: 'Report and create project issues' },
+  { code: 'issues.read', module: 'issues', action: 'read', description: 'View project issues and resolutions' },
+  { code: 'issues.update', module: 'issues', action: 'update', description: 'Update and resolve project issues' },
+  { code: 'issues.delete', module: 'issues', action: 'delete', description: 'Archive or delete issues' },
+
+  // Change Requests & Approvals (Phase 4)
+  { code: 'change_requests.create', module: 'change_requests', action: 'create', description: 'Create change requests with impact assessments' },
+  { code: 'change_requests.read', module: 'change_requests', action: 'read', description: 'View project change requests and approvals' },
+  { code: 'change_requests.update', module: 'change_requests', action: 'update', description: 'Edit draft change requests' },
+  { code: 'change_requests.submit', module: 'change_requests', action: 'submit', description: 'Submit change requests for review' },
+  { code: 'change_requests.approve', module: 'change_requests', action: 'approve', description: 'Approve or reject change requests' },
+  { code: 'change_requests.delete', module: 'change_requests', action: 'delete', description: 'Cancel or remove change requests' },
+
+  // Project & Task Templates (Phase 4)
+  { code: 'templates.create', module: 'templates', action: 'create', description: 'Create project and task templates' },
+  { code: 'templates.read', module: 'templates', action: 'read', description: 'Browse and inspect project and task templates' },
+  { code: 'templates.update', module: 'templates', action: 'update', description: 'Modify project and task templates' },
+  { code: 'templates.delete', module: 'templates', action: 'delete', description: 'Delete templates' },
+  { code: 'templates.instantiate', module: 'templates', action: 'instantiate', description: 'Generate complete projects from templates' },
+
+  // Recurring Tasks (Phase 4)
+  { code: 'recurring_tasks.create', module: 'recurring_tasks', action: 'create', description: 'Create recurring task schedules' },
+  { code: 'recurring_tasks.read', module: 'recurring_tasks', action: 'read', description: 'View recurring task definitions' },
+  { code: 'recurring_tasks.update', module: 'recurring_tasks', action: 'update', description: 'Update or pause recurring task schedules' },
+  { code: 'recurring_tasks.delete', module: 'recurring_tasks', action: 'delete', description: 'Delete recurring task definitions' },
+
+  // Project Baselines (Phase 4)
+  { code: 'baselines.create', module: 'baselines', action: 'create', description: 'Create project baseline snapshots' },
+  { code: 'baselines.read', module: 'baselines', action: 'read', description: 'View project baselines and compare variances' },
+
+  // Project Governance, Health Override, Archive & Restore (Phase 4)
+  { code: 'projects.health_override', module: 'projects', action: 'health_override', description: 'Manually override or reset project health status' },
+  { code: 'projects.archive', module: 'projects', action: 'archive', description: 'Archive completed projects' },
+  { code: 'projects.restore', module: 'projects', action: 'restore', description: 'Restore archived projects to active state' },
+
+  // Project Financial Management (Phase 5 - STRICT SUPER ADMIN ONLY)
+  { code: 'finance.read', module: 'finance', action: 'read', description: 'View financial dashboard, cash positions, and project financials' },
+  { code: 'finance.manage', module: 'finance', action: 'manage', description: 'Configure project value, client payments, and expenses' },
+  { code: 'finance.export', module: 'finance', action: 'export', description: 'Export financial reports and summaries' },
 ];
 
 async function main() {
@@ -171,8 +218,14 @@ async function main() {
     });
   }
 
-  // Admin gets all except deep role governance
-  const adminPermissions = PERMISSIONS.filter((p) => p.code !== 'roles.manage');
+  // Admin gets all except deep role governance and financial management
+  const adminPermissions = PERMISSIONS.filter(
+    (p) =>
+      p.code !== 'roles.manage' &&
+      !p.module.startsWith('finance') &&
+      !p.module.startsWith('invoices') &&
+      !p.module.startsWith('payments'),
+  );
   for (const perm of adminPermissions) {
     const permId = permissionMap.get(perm.code)!;
     await prisma.rolePermission.upsert({
@@ -215,6 +268,20 @@ async function main() {
     'calendar.read',
     'timeline.read',
     'progress.read',
+    // Phase 4 Permissions
+    'risks.read',
+    'risks.create',
+    'risks.update',
+    'issues.read',
+    'issues.create',
+    'issues.update',
+    'change_requests.read',
+    'change_requests.create',
+    'change_requests.update',
+    'change_requests.submit',
+    'templates.read',
+    'recurring_tasks.read',
+    'baselines.read',
   ];
   for (const code of userPermissions) {
     const permId = permissionMap.get(code);
@@ -806,7 +873,319 @@ async function main() {
     },
   });
 
-  console.log('✅ Seed completed successfully for Phase 1, Phase 2 & Phase 3!');
+  // ----------------------------------------------------
+  // Phase 4 Seed Data: Governance & Templates
+  // ----------------------------------------------------
+  console.log('  → Seeding Phase 4 Governance (Templates, Risks, Issues, Change Requests)...');
+
+  // Seed Project Template
+  const webTemplate = await prisma.projectTemplate.upsert({
+    where: { name: 'Full-Stack Web Application Template' },
+    update: {},
+    create: {
+      name: 'Full-Stack Web Application Template',
+      description: 'Standard boilerplate workflow for full-stack web and mobile systems with discovery, architecture, build, QA and deployment stages.',
+      category: 'Software Engineering',
+      estimatedDurationDays: 60,
+      defaultRoles: ['PROJECT_MANAGER', 'DEVELOPER', 'DESIGNER', 'QA'],
+      isSystem: true,
+      createdById: superAdminUser.id,
+      milestones: {
+        create: [
+          {
+            name: '1. Discovery & Design',
+            description: 'Requirements analysis, technical specs, wireframes, and design system',
+            orderIndex: 0,
+            targetDayOffset: 14,
+            tasks: {
+              create: [
+                {
+                  title: 'Stakeholder discovery and PRD review',
+                  description: 'Align business requirements and technical feasibility',
+                  priority: 'HIGH',
+                  estimatedHours: 16,
+                  defaultRole: 'PROJECT_MANAGER',
+                  orderIndex: 0,
+                  targetDayOffset: 5,
+                  checklist: ['Review scope', 'Document constraints', 'Sign off on milestones'],
+                },
+                {
+                  title: 'Figma UI/UX high-fidelity prototypes',
+                  description: 'Design key responsive views and interactive components',
+                  priority: 'MEDIUM',
+                  estimatedHours: 32,
+                  defaultRole: 'DESIGNER',
+                  orderIndex: 1,
+                  targetDayOffset: 12,
+                  checklist: ['Create design tokens', 'Build component library', 'Prototype core flows'],
+                },
+              ],
+            },
+          },
+          {
+            name: '2. Core Platform Engineering',
+            description: 'Backend APIs, database migration, authentication, and frontend integration',
+            orderIndex: 1,
+            targetDayOffset: 45,
+            tasks: {
+              create: [
+                {
+                  title: 'Setup Database schemas and NestJS backend modules',
+                  description: 'Implement models, controllers, services, guards and validation',
+                  priority: 'HIGH',
+                  estimatedHours: 40,
+                  defaultRole: 'DEVELOPER',
+                  orderIndex: 0,
+                  targetDayOffset: 25,
+                  checklist: ['Schema design', 'CRUD endpoints', 'JWT auth and RBAC'],
+                },
+                {
+                  title: 'Frontend page assembly and API integration',
+                  description: 'Develop responsive React/Next.js dashboard and features',
+                  priority: 'HIGH',
+                  estimatedHours: 48,
+                  defaultRole: 'DEVELOPER',
+                  orderIndex: 1,
+                  targetDayOffset: 40,
+                  checklist: ['API client layer', 'State management', 'Component styling'],
+                },
+              ],
+            },
+          },
+          {
+            name: '3. QA, Security & Production Launch',
+            description: 'Automated testing, load testing, SAIF security review, and deployment',
+            orderIndex: 2,
+            targetDayOffset: 60,
+            tasks: {
+              create: [
+                {
+                  title: 'End-to-End Test Suite and Security Audit',
+                  description: 'Execute automated regression and OWASP vulnerability review',
+                  priority: 'HIGH',
+                  estimatedHours: 24,
+                  defaultRole: 'QA',
+                  orderIndex: 0,
+                  targetDayOffset: 55,
+                  checklist: ['Run e2e suite', 'Penetration testing', 'Fix high severity bugs'],
+                },
+                {
+                  title: 'CI/CD Production Deployment and Monitoring',
+                  description: 'Configure staging/prod pipelines and alerting rules',
+                  priority: 'MEDIUM',
+                  estimatedHours: 16,
+                  defaultRole: 'DEVELOPER',
+                  orderIndex: 1,
+                  targetDayOffset: 59,
+                  checklist: ['Setup Docker builds', 'Configure domain & SSL', 'Health checks'],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Seed Risks on Project 1
+  const risk1 = await prisma.risk.upsert({
+    where: { projectId_riskNumber: { projectId: project1.id, riskNumber: 1 } },
+    update: {},
+    create: {
+      projectId: project1.id,
+      riskNumber: 1,
+      title: 'Third-party API rate limits could degrade real-time sync',
+      description: 'Upstream payment and CRM gateways enforce strict 100 req/sec throttles.',
+      category: 'TECHNICAL',
+      status: 'MONITORING',
+      probability: 'MEDIUM', // 2
+      impact: 'HIGH', // 3
+      riskScore: 6, // 2 * 3 = 6
+      ownerId: adminUser.id,
+      createdById: superAdminUser.id,
+      mitigationPlan: 'Implement Redis queue buffering and exponential backoff retry mechanism.',
+      contingencyPlan: 'Temporarily switch to scheduled batch synchronization mode.',
+      identifiedDate: new Date('2026-03-05T09:00:00Z'),
+      reviewDate: new Date('2026-04-01T09:00:00Z'),
+    },
+  });
+
+  const risk2 = await prisma.risk.upsert({
+    where: { projectId_riskNumber: { projectId: project1.id, riskNumber: 2 } },
+    update: {},
+    create: {
+      projectId: project1.id,
+      riskNumber: 2,
+      title: 'Key lead DevOps engineer availability bottleneck',
+      description: 'Single point of failure on Kubernetes cluster provisioning and secret management.',
+      category: 'RESOURCE',
+      status: 'OPEN',
+      probability: 'HIGH', // 3
+      impact: 'CRITICAL', // 4
+      riskScore: 12, // 3 * 4 = 12 (High risk)
+      ownerId: adminUser.id,
+      createdById: adminUser.id,
+      mitigationPlan: 'Cross-train two backend developers on Terraform deployment manifests.',
+      contingencyPlan: 'Engage on-demand DevOps contractor if lead is unavailable.',
+      identifiedDate: new Date('2026-03-10T10:00:00Z'),
+      reviewDate: new Date('2026-03-30T10:00:00Z'),
+    },
+  });
+
+  // Seed Issues on Project 1
+  const issue1 = await prisma.issue.upsert({
+    where: { projectId_issueNumber: { projectId: project1.id, issueNumber: 1 } },
+    update: {},
+    create: {
+      projectId: project1.id,
+      issueNumber: 1,
+      title: 'PostgreSQL read-replica latency exceeds 500ms under load testing',
+      description: 'Observed intermittent replication lag during high concurrent write batches in staging.',
+      type: 'TECHNICAL',
+      severity: 'HIGH',
+      priority: 'HIGH',
+      status: 'IN_PROGRESS',
+      reportedById: developerUser.id,
+      ownerId: developerUser.id,
+      taskId: task2.id,
+      milestoneId: milestoneM1.id,
+      reportedDate: new Date('2026-03-22T14:00:00Z'),
+      dueDate: new Date('2026-03-29T18:00:00Z'),
+    },
+  });
+
+  // Seed Change Request on Project 1
+  const changeReq1 = await prisma.changeRequest.upsert({
+    where: { projectId_requestNumber: { projectId: project1.id, requestNumber: 1 } },
+    update: {},
+    create: {
+      projectId: project1.id,
+      requestNumber: 1,
+      title: 'Add Single Sign-On (SSO) with Okta and SAML 2.0',
+      description: 'Enterprise client requested SAML SSO integration for corporate compliance.',
+      type: 'REQUIREMENT',
+      status: 'SUBMITTED',
+      reason: 'Client security policy requires central Identity Provider authentication.',
+      impactSummary: 'Requires Passport SAML strategy and new user provisioning pipeline.',
+      scheduleImpactDays: 7,
+      costImpact: 'Additional 40 engineering hours estimated',
+      resourceImpact: '+1 Backend security engineer for 1 sprint',
+      scopeImpact: 'SAML metadata exchange, ACS endpoint, and JIT user provisioning',
+      riskImpact: 'Low risk; standard OAuth/JWT auth remains unchanged as fallback',
+      requestedById: developerUser.id,
+      requestedAt: new Date('2026-03-24T11:00:00Z'),
+    },
+  });
+
+  // Seed Initial Project Baseline for Project 1
+  const baseline1 = await prisma.projectBaseline.upsert({
+    where: { projectId_baselineNumber: { projectId: project1.id, baselineNumber: 1 } },
+    update: {},
+    create: {
+      projectId: project1.id,
+      baselineNumber: 1,
+      name: 'Initial Approved Architecture Baseline (v1.0)',
+      description: 'Original approved schedule and scope following kickoff milestone review.',
+      createdById: superAdminUser.id,
+      createdAt: new Date('2026-03-01T00:00:00Z'),
+      snapshot: {
+        create: {
+          totalTasks: 4,
+          totalMilestones: 2,
+          totalEstimatedHours: 64,
+          plannedStartDate: new Date('2026-03-01T00:00:00Z'),
+          plannedEndDate: new Date('2026-04-15T00:00:00Z'),
+          snapshotData: {
+            milestonesCount: 2,
+            tasksCount: 4,
+            plannedHours: 64,
+            targetEndDate: '2026-04-15T00:00:00Z',
+          },
+        },
+      },
+    },
+  });
+
+  // ----------------------------------------------------
+  // Phase 5: Project Financial Management Seed Data
+  // ----------------------------------------------------
+  console.log('  → Seeding Phase 5: Project Financials, Client Payments & Expenses...');
+
+  // 1. Project 1 Financial Settings (Value: 50,000 INR)
+  await prisma.projectFinancial.upsert({
+    where: { projectId: project1.id },
+    update: { projectValue: 50000, currency: 'INR' },
+    create: {
+      projectId: project1.id,
+      currency: 'INR',
+      projectValue: 50000,
+      createdById: superAdminUser.id,
+    },
+  });
+
+  // 2. Project 1 Client Payments (Total received: 30,000 INR)
+  await prisma.clientPayment.createMany({
+    data: [
+      {
+        projectId: project1.id,
+        amount: 10000,
+        paymentDate: new Date('2026-03-15T00:00:00Z'),
+        paymentMethod: 'UPI',
+        referenceNumber: 'UPI/2026/0315-9921',
+        notes: 'Initial kickoff advance payment received',
+        createdById: superAdminUser.id,
+      },
+      {
+        projectId: project1.id,
+        amount: 20000,
+        paymentDate: new Date('2026-03-28T14:30:00Z'),
+        paymentMethod: 'BANK_TRANSFER',
+        referenceNumber: 'WIRE-ACME-884920',
+        notes: 'Second milestone installment received',
+        createdById: superAdminUser.id,
+      },
+    ],
+  });
+
+  // 3. Project 1 Expenses (Total: 9,000 INR)
+  await prisma.projectExpense.createMany({
+    data: [
+      {
+        projectId: project1.id,
+        category: 'DEVELOPER_PAYMENT',
+        userId: developerUser.id,
+        amount: 5000,
+        paymentDate: new Date('2026-03-20T00:00:00Z'),
+        paymentMethod: 'UPI',
+        referenceNumber: 'UPI/DEV/88391',
+        description: 'Frontend and API integration payment to John Doe',
+        createdById: superAdminUser.id,
+      },
+      {
+        projectId: project1.id,
+        category: 'DESIGNER_PAYMENT',
+        userId: designerUser.id,
+        amount: 3000,
+        paymentDate: new Date('2026-03-22T00:00:00Z'),
+        paymentMethod: 'UPI',
+        referenceNumber: 'UPI/DES/77219',
+        description: 'UI/UX wireframes and prototype payment to Elena',
+        createdById: superAdminUser.id,
+      },
+      {
+        projectId: project1.id,
+        category: 'INFRASTRUCTURE',
+        amount: 1000,
+        paymentDate: new Date('2026-03-25T00:00:00Z'),
+        paymentMethod: 'CREDIT_CARD',
+        referenceNumber: 'AWS-INV-99210',
+        description: 'Cloud hosting server staging environment setup',
+        createdById: superAdminUser.id,
+      },
+    ],
+  });
+
+  console.log('✅ Seed completed successfully for Phase 1, Phase 2, Phase 3, Phase 4 & Phase 5!');
   console.log('----------------------------------------------------');
   console.log('Default Credentials:');
   console.log(`  Super Admin: ${superAdminEmail} / ${superAdminPassword}`);

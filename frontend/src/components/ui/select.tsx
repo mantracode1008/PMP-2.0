@@ -11,6 +11,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="relative w-full">
         <select
+          style={{ colorScheme: 'light', ...props.style }}
           className={cn(
             'flex h-9 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-1 pr-8 text-sm text-slate-900 shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer',
             error && 'border-rose-500 focus-visible:ring-rose-500',

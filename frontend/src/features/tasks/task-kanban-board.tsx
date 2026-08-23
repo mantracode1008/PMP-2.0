@@ -25,13 +25,15 @@ interface TaskKanbanBoardProps {
   onAddTask: (status?: TaskStatus) => void;
 }
 
-const COLUMNS: { id: TaskStatus; title: string; color: string }[] = [
-  { id: 'BACKLOG', title: 'Backlog', color: 'border-slate-300' },
-  { id: 'TODO', title: 'To Do', color: 'border-blue-400' },
-  { id: 'IN_PROGRESS', title: 'In Progress', color: 'border-amber-400' },
-  { id: 'IN_REVIEW', title: 'In Review', color: 'border-purple-400' },
-  { id: 'QA', title: 'QA / Testing', color: 'border-indigo-400' },
-  { id: 'COMPLETED', title: 'Completed', color: 'border-emerald-400' },
+const COLUMNS: { id: TaskStatus; title: string; color: string; dotColor: string }[] = [
+  { id: 'BACKLOG', title: 'Backlog', color: 'border-slate-300', dotColor: 'bg-slate-400' },
+  { id: 'TODO', title: 'To Do', color: 'border-blue-300', dotColor: 'bg-blue-500' },
+  { id: 'IN_PROGRESS', title: 'In Progress', color: 'border-amber-300', dotColor: 'bg-amber-500' },
+  { id: 'IN_REVIEW', title: 'In Review', color: 'border-purple-300', dotColor: 'bg-purple-500' },
+  { id: 'QA', title: 'QA / Testing', color: 'border-indigo-300', dotColor: 'bg-indigo-500' },
+  { id: 'BLOCKED', title: 'Blocked', color: 'border-rose-300', dotColor: 'bg-rose-500' },
+  { id: 'COMPLETED', title: 'Completed', color: 'border-emerald-300', dotColor: 'bg-emerald-500' },
+  { id: 'CANCELLED', title: 'Cancelled', color: 'border-slate-300', dotColor: 'bg-slate-400' },
 ];
 
 export const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
@@ -103,7 +105,7 @@ export const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
   };
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-6 pt-1 select-none">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-6 pt-1 select-none">
       {COLUMNS.map((col) => {
         const columnTasks = tasks.filter((t) => t.status === col.id);
         const isOver = dragOverColumn === col.id;
@@ -114,47 +116,49 @@ export const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
             onDragOver={(e) => handleDragOver(e, col.id)}
             onDragLeave={() => setDragOverColumn(null)}
             onDrop={(e) => handleDrop(e, col.id)}
-            className={`w-72 shrink-0 flex flex-col rounded-2xl border bg-slate-50/70 p-3 transition-colors ${
-              isOver ? 'border-indigo-400 bg-indigo-50/40 ring-2 ring-indigo-200' : 'border-slate-200/80'
+            className={`flex flex-col rounded-2xl border bg-slate-50/75 p-3.5 transition-all min-h-[260px] ${
+              isOver
+                ? 'border-indigo-500 bg-indigo-50/50 ring-2 ring-indigo-200 shadow-md'
+                : 'border-slate-200/90 shadow-2xs hover:border-slate-300'
             }`}
           >
             {/* Column Header */}
-            <div className="flex items-center justify-between px-1 pb-3">
+            <div className="flex items-center justify-between px-1 pb-3 border-b border-slate-200/60 mb-2.5">
               <div className="flex items-center gap-2">
-                <span className={`h-2.5 w-2.5 rounded-full border-2 ${col.color} bg-white`} />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                <span className={`h-2.5 w-2.5 rounded-full ${col.dotColor}`} />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                   {col.title}
                 </h3>
-                <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-white border border-slate-200/80 text-slate-500">
+                <span className="text-[11px] font-bold px-1.5 py-0.2 rounded-md bg-white border border-slate-200 text-slate-600">
                   {columnTasks.length}
                 </span>
               </div>
 
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-6 w-6 p-0 text-slate-400 hover:text-slate-800"
+                className="h-6 w-6 p-0 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-md cursor-pointer"
                 onClick={() => onAddTask(col.id)}
-                title="Add task in this column"
+                title={`Add task in ${col.title}`}
               >
                 <Plus className="h-3.5 w-3.5" />
               </Button>
             </div>
 
             {/* Task Cards Column */}
-            <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[calc(100vh-280px)] pr-0.5">
+            <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[340px] pr-0.5">
               {columnTasks.map((task) => (
                 <div
                   key={task.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, task.id)}
                   onClick={() => onTaskClick(task)}
-                  className={`p-3.5 rounded-xl border bg-white shadow-2xs hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer space-y-2.5 ${
-                    draggedTaskId === task.id ? 'opacity-40 ring-1 ring-indigo-400' : 'border-slate-200/90'
+                  className={`p-3 rounded-xl border bg-white shadow-2xs hover:shadow-sm hover:border-indigo-300 transition-all cursor-pointer space-y-2 ${
+                    draggedTaskId === task.id ? 'opacity-40 ring-2 ring-indigo-400' : 'border-slate-200/90'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-mono font-bold text-slate-400">
+                    <span className="text-[10px] font-mono font-bold text-slate-400">
                       #{task.taskNumber}
                     </span>
                     <TaskPriorityBadge priority={task.priority} />
@@ -171,23 +175,23 @@ export const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
                   )}
 
                   {/* Footer Stats & Assignees */}
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] text-slate-400">
-                    <div className="flex items-center gap-2.5">
+                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px] text-slate-400">
+                    <div className="flex items-center gap-2">
                       {task.dueDate && (
                         <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
+                          <Calendar className="h-3 w-3 text-slate-400" />
                           {formatDate(task.dueDate)}
                         </span>
                       )}
                       {(task.subtaskCount ?? 0) > 0 && (
                         <span className="flex items-center gap-0.5">
-                          <CheckSquare className="h-3 w-3" />
+                          <CheckSquare className="h-3 w-3 text-slate-400" />
                           {task.subtaskCount}
                         </span>
                       )}
                       {(task.commentCount ?? 0) > 0 && (
                         <span className="flex items-center gap-0.5">
-                          <MessageSquare className="h-3 w-3" />
+                          <MessageSquare className="h-3 w-3 text-slate-400" />
                           {task.commentCount}
                         </span>
                       )}
@@ -216,7 +220,7 @@ export const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
               {columnTasks.length === 0 && (
                 <div
                   onClick={() => onAddTask(col.id)}
-                  className="py-8 border-2 border-dashed border-slate-200/80 rounded-xl text-center cursor-pointer hover:border-slate-300 text-slate-400 text-xs hover:text-slate-600 transition-colors"
+                  className="py-6 border-2 border-dashed border-slate-200/80 rounded-xl text-center cursor-pointer hover:border-slate-300 hover:bg-white/60 text-slate-400 text-xs hover:text-slate-600 transition-all"
                 >
                   + Add task
                 </div>
@@ -228,3 +232,4 @@ export const TaskKanbanBoard: React.FC<TaskKanbanBoardProps> = ({
     </div>
   );
 };
+

@@ -84,6 +84,9 @@ enum DependencyType {
 enum DocumentEntityType {
   PROJECT
   TASK
+  RISK
+  ISSUE
+  CHANGE_REQUEST
 }
 
 enum TimesheetStatus {
@@ -92,6 +95,114 @@ enum TimesheetStatus {
   APPROVED
   REJECTED
   LOCKED
+}
+
+enum RiskProbability {
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+enum RiskImpact {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskStatus {
+  OPEN
+  MONITORING
+  MITIGATED
+  ACCEPTED
+  CLOSED
+}
+
+enum RiskCategory {
+  TECHNICAL
+  SCHEDULE
+  RESOURCE
+  BUDGET
+  OPERATIONAL
+  EXTERNAL
+  OTHER
+}
+
+enum IssueType {
+  TECHNICAL
+  BLOCKER
+  DEPENDENCY
+  RESOURCE
+  SCOPE
+  QUALITY
+  OTHER
+}
+
+enum IssueSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IssuePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum ChangeRequestType {
+  SCOPE
+  SCHEDULE
+  RESOURCE
+  TECHNICAL
+  REQUIREMENT
+  OTHER
+}
+
+enum ChangeRequestStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  IMPLEMENTED
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalEntityType {
+  CHANGE_REQUEST
+  TIMESHEET
+  PROJECT_CLOSURE
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum ClosureValidationPolicy {
+  WARN
+  BLOCK
+  ALLOW
 }
 
 enum AuditAction {
@@ -108,6 +219,31 @@ enum AuditAction {
   APPROVE
   REJECT
   LOCK
+  CANCEL
+  ARCHIVE
+  RESTORE
+  CALCULATE
+  OVERRIDE
+}
+
+enum ExpenseCategory {
+  TEAM_MEMBER_PAYMENT
+  FREELANCER_PAYMENT
+  DESIGNER_PAYMENT
+  DEVELOPER_PAYMENT
+  SOFTWARE_TOOLS
+  INFRASTRUCTURE
+  MARKETING
+  OTHER
+}
+
+enum PaymentMethod {
+  UPI
+  BANK_TRANSFER
+  CREDIT_CARD
+  CASH
+  CHEQUE
+  OTHER
 }
 
 enum AuditEntityType {
@@ -125,6 +261,16 @@ enum AuditEntityType {
   WORK_LOG
   TIMESHEET
   CAPACITY
+  RISK
+  ISSUE
+  CHANGE_REQUEST
+  APPROVAL
+  PROJECT_TEMPLATE
+  RECURRING_TASK
+  PROJECT_BASELINE
+  PROJECT_FINANCIAL
+  CLIENT_PAYMENT
+  PROJECT_EXPENSE
 }
 
 model User {
@@ -165,6 +311,30 @@ model User {
   reviewedTimesheets Timesheet[]     @relation("TimesheetReviewer")
   capacity           UserCapacity?
 
+  // Phase 4 Relations
+  ownedRisks                Risk[]                    @relation("RiskOwner")
+  createdRisks              Risk[]                    @relation("RiskCreator")
+  reportedIssues            Issue[]                   @relation("IssueReporter")
+  assignedIssues            Issue[]                   @relation("IssueOwner")
+  requestedChangeRequests   ChangeRequest[]           @relation("ChangeRequestRequester")
+  approvedChangeRequests    ChangeRequest[]           @relation("ChangeRequestApprover")
+  rejectedChangeRequests    ChangeRequest[]           @relation("ChangeRequestRejecter")
+  approvalRequestsRequested ApprovalRequest[]         @relation("ApprovalRequester")
+  approvalStepsActioned     ApprovalStep[]            @relation("ApprovalStepActor")
+  assignedApprovalSteps     ApprovalStep[]            @relation("ApprovalStepAssignee")
+  createdTemplates          ProjectTemplate[]         @relation("TemplateCreator")
+  createdRecurringTasks     RecurringTaskDefinition[] @relation("RecurringTaskCreator")
+  createdBaselines          ProjectBaseline[]         @relation("BaselineCreator")
+  overriddenProjects        Project[]                 @relation("HealthOverrider")
+  archivedProjects          Project[]                 @relation("ProjectArchiver")
+
+  // Phase 5 Financial Relations
+  createdFinancialSettings  ProjectFinancial[]        @relation("FinancialSettingsCreator")
+  createdClientPayments     ClientPayment[]           @relation("ClientPaymentCreator")
+  createdExpenses           ProjectExpense[]          @relation("ExpenseCreator")
+  receivedExpenses          ProjectExpense[]          @relation("ExpenseRecipient")
+  financialAuditLogs        FinancialAuditLog[]       @relation("FinancialAuditActor")
+
   @@index([email])
   @@index([status])
   @@index([departmentId])
@@ -189,8 +359,8 @@ model Role {
 model Permission {
   id          String           @id @default(cuid())
   code        String           @unique // e.g. users.create, projects.read
-  module      String           // e.g. users, projects, milestones, tasks, comments, documents, timesheets, worklogs
-  action      String           // e.g. create, read, update, delete, manage, assign, upload, submit, approve, reject, lock
+  module      String           // e.g. users, projects, milestones, tasks, comments, documents, timesheets, worklogs, risks, issues, change_requests, templates, recurring_tasks, baselines
+  action      String           // e.g. create, read, update, delete, manage, assign, upload, submit, approve, reject, lock, archive, restore
   description String
   createdAt   DateTime         @default(now())
 
@@ -325,6 +495,21 @@ model Project {
   description   String?
   status        ProjectStatus @default(PLANNING)
   health        ProjectHealth @default(HEALTHY)
+  
+  // Phase 4 Health & Override additions
+  calculatedHealth      ProjectHealth @default(HEALTHY)
+  isHealthOverridden    Boolean       @default(false)
+  healthOverrideReason  String?
+  healthOverriddenById  String?
+  healthOverriddenBy    User?         @relation("HealthOverrider", fields: [healthOverriddenById], references: [id], onDelete: SetNull)
+  healthOverriddenAt    DateTime?
+
+  // Phase 4 Archive additions
+  archivedById          String?
+  archivedBy            User?         @relation("ProjectArchiver", fields: [archivedById], references: [id], onDelete: SetNull)
+  archivedAt            DateTime?
+  archiveReason         String?
+
   clientId      String
   ownerId       String // Project Manager / Owner
   startDate     DateTime?
@@ -342,6 +527,19 @@ model Project {
   documents       Document[]
   workLogs        WorkLog[]
   progressHistory ProgressHistory[]
+
+  // Phase 4 Relations
+  risks                   Risk[]
+  issues                  Issue[]
+  changeRequests          ChangeRequest[]
+  approvalRequests        ApprovalRequest[]
+  recurringTaskDefs       RecurringTaskDefinition[]
+  baselines               ProjectBaseline[]
+
+  // Phase 5 Financial Relations
+  financialSettings       ProjectFinancial?
+  clientPayments          ClientPayment[]
+  expenses                ProjectExpense[]
 
   @@index([code])
   @@index([name])
@@ -379,6 +577,9 @@ model Milestone {
   createdById String
   createdBy   User            @relation("MilestoneCreator", fields: [createdById], references: [id], onDelete: Restrict)
   tasks       Task[]
+  issues      Issue[]
+  recurringTasks RecurringTaskDefinition[]
+
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   deletedAt   DateTime?
@@ -416,6 +617,7 @@ model Task {
   comments       TaskComment[]
   attachments    Document[]       @relation("TaskAttachments")
   workLogs       WorkLog[]
+  issues         Issue[]
   
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -481,6 +683,12 @@ model Document {
   project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   taskId           String?
   task             Task?              @relation("TaskAttachments", fields: [taskId], references: [id], onDelete: Cascade)
+  riskId           String?
+  risk             Risk?              @relation("RiskAttachments", fields: [riskId], references: [id], onDelete: Cascade)
+  issueId          String?
+  issue            Issue?             @relation("IssueAttachments", fields: [issueId], references: [id], onDelete: Cascade)
+  changeRequestId  String?
+  changeRequest    ChangeRequest?     @relation("ChangeRequestAttachments", fields: [changeRequestId], references: [id], onDelete: Cascade)
   fileName         String
   originalFileName String
   mimeType         String
@@ -493,6 +701,9 @@ model Document {
 
   @@index([projectId, entityType])
   @@index([taskId])
+  @@index([riskId])
+  @@index([issueId])
+  @@index([changeRequestId])
   @@index([uploadedById])
   @@index([deletedAt])
 }
@@ -593,3 +804,437 @@ model ProgressHistory {
 
   @@index([projectId, recordedAt])
 }
+
+// ----------------------------------------------------
+// PHASE 4 MODELS: Advanced Project Governance
+// ----------------------------------------------------
+
+model Risk {
+  id              String          @id @default(cuid())
+  projectId       String
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  riskNumber      Int
+  title           String
+  description     String?
+  category        RiskCategory    @default(TECHNICAL)
+  status          RiskStatus      @default(OPEN)
+  probability     RiskProbability @default(MEDIUM)
+  impact          RiskImpact      @default(MEDIUM)
+  riskScore       Int             @default(4) // probability weight (1..4) * impact weight (1..4)
+  
+  ownerId         String
+  owner           User            @relation("RiskOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  identifiedDate  DateTime        @default(now())
+  reviewDate      DateTime?
+  
+  mitigationPlan  String?
+  contingencyPlan String?
+  
+  createdById     String
+  createdBy       User            @relation("RiskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  
+  issues          Issue[]
+  attachments     Document[]      @relation("RiskAttachments")
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([projectId, riskNumber])
+  @@index([projectId, status])
+  @@index([ownerId])
+  @@index([riskScore])
+  @@index([deletedAt])
+}
+
+model Issue {
+  id           String        @id @default(cuid())
+  projectId    String
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issueNumber  Int
+  title        String
+  description  String?
+  type         IssueType     @default(TECHNICAL)
+  severity     IssueSeverity @default(MEDIUM)
+  priority     IssuePriority @default(MEDIUM)
+  status       IssueStatus   @default(OPEN)
+
+  reportedById String
+  reportedBy   User          @relation("IssueReporter", fields: [reportedById], references: [id], onDelete: Restrict)
+  
+  ownerId      String?
+  owner        User?         @relation("IssueOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  milestoneId  String?
+  milestone    Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  taskId       String?
+  task         Task?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  riskId       String?
+  risk         Risk?         @relation(fields: [riskId], references: [id], onDelete: SetNull)
+
+  reportedDate DateTime      @default(now())
+  dueDate      DateTime?
+  resolvedDate DateTime?
+  resolution   String?
+
+  attachments  Document[]    @relation("IssueAttachments")
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([projectId, issueNumber])
+  @@index([projectId, status])
+  @@index([severity])
+  @@index([priority])
+  @@index([ownerId])
+  @@index([milestoneId])
+  @@index([taskId])
+  @@index([riskId])
+  @@index([deletedAt])
+}
+
+model ChangeRequest {
+  id                 String              @id @default(cuid())
+  projectId          String
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestNumber      Int
+  title              String
+  description        String
+  type               ChangeRequestType   @default(SCOPE)
+  status             ChangeRequestStatus @default(DRAFT)
+  reason             String
+  impactSummary      String?
+  scheduleImpactDays Int?                // e.g. +7 days
+  costImpact         String?             // descriptive cost impact
+  resourceImpact     String?             // e.g. +1 senior developer
+  scopeImpact        String?
+  riskImpact         String?
+
+  requestedById      String
+  requestedBy        User                @relation("ChangeRequestRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  requestedAt        DateTime            @default(now())
+
+  approvedById       String?
+  approvedBy         User?               @relation("ChangeRequestApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt         DateTime?
+
+  rejectedById       String?
+  rejectedBy         User?               @relation("ChangeRequestRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt         DateTime?
+  rejectionReason    String?
+
+  approvalRequests   ApprovalRequest[]
+  attachments        Document[]          @relation("ChangeRequestAttachments")
+
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+
+  @@unique([projectId, requestNumber])
+  @@index([projectId, status])
+  @@index([requestedById])
+  @@index([approvedById])
+  @@index([deletedAt])
+}
+
+model ApprovalRequest {
+  id              String             @id @default(cuid())
+  entityType      ApprovalEntityType
+  entityId        String
+  projectId       String?
+  project         Project?           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changeRequestId String?
+  changeRequest   ChangeRequest?     @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  
+  requestedById   String
+  requestedBy     User               @relation("ApprovalRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  
+  status          ApprovalStatus     @default(PENDING)
+  currentStep     Int                @default(1)
+  totalSteps      Int                @default(1)
+  
+  steps           ApprovalStep[]
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([projectId])
+  @@index([status])
+}
+
+model ApprovalStep {
+  id                String          @id @default(cuid())
+  approvalRequestId String
+  approvalRequest   ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  stepOrder         Int             @default(1)
+  
+  approverRoleId    String?         // Role required (e.g. SUPER_ADMIN, ADMIN)
+  approverUserId    String?
+  approverUser      User?           @relation("ApprovalStepAssignee", fields: [approverUserId], references: [id], onDelete: SetNull)
+  
+  status            ApprovalStatus  @default(PENDING)
+  actionById        String?
+  actionBy          User?           @relation("ApprovalStepActor", fields: [actionById], references: [id], onDelete: SetNull)
+  actionAt          DateTime?
+  comments          String?
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([approvalRequestId, stepOrder])
+  @@index([approvalRequestId])
+  @@index([status])
+}
+
+model ProjectTemplate {
+  id                    String              @id @default(cuid())
+  name                  String              @unique
+  description           String?
+  category              String?
+  estimatedDurationDays Int                 @default(30)
+  defaultRoles          String[]            @default([]) // e.g. ["PROJECT_MANAGER", "DEVELOPER", "DESIGNER", "QA"]
+  isSystem              Boolean             @default(false)
+  
+  milestones            MilestoneTemplate[]
+  tasks                 TaskTemplate[]
+
+  createdById           String?
+  createdBy             User?               @relation("TemplateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  deletedAt             DateTime?
+
+  @@index([name])
+  @@index([category])
+  @@index([deletedAt])
+}
+
+model MilestoneTemplate {
+  id              String          @id @default(cuid())
+  templateId      String
+  template        ProjectTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  orderIndex      Int             @default(0)
+  targetDayOffset Int             @default(0)
+
+  tasks           TaskTemplate[]
+
+  @@index([templateId])
+}
+
+model TaskTemplate {
+  id                  String                   @id @default(cuid())
+  templateId          String?
+  template            ProjectTemplate?         @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  milestoneTemplateId String?
+  milestoneTemplate   MilestoneTemplate?       @relation(fields: [milestoneTemplateId], references: [id], onDelete: SetNull)
+  
+  title               String
+  description         String?
+  priority            TaskPriority             @default(MEDIUM)
+  estimatedHours      Float?
+  defaultRole         String?                  // e.g. "DEVELOPER", "DESIGNER", "QA"
+  orderIndex          Int                      @default(0)
+  targetDayOffset     Int                      @default(0)
+  checklist           Json?                    // e.g. ["Review requirements", "Unit tests", "Code review"]
+  isStandalone        Boolean                  @default(false)
+
+  dependencies        TaskTemplateDependency[] @relation("TaskTemplateDependencies")
+  dependedOnBy        TaskTemplateDependency[] @relation("DependedOnByTaskTemplate")
+
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@index([templateId])
+  @@index([milestoneTemplateId])
+  @@index([isStandalone])
+}
+
+model TaskTemplateDependency {
+  id                      String         @id @default(cuid())
+  taskTemplateId          String
+  taskTemplate            TaskTemplate   @relation("TaskTemplateDependencies", fields: [taskTemplateId], references: [id], onDelete: Cascade)
+  dependsOnTaskTemplateId String
+  dependsOnTaskTemplate   TaskTemplate   @relation("DependedOnByTaskTemplate", fields: [dependsOnTaskTemplateId], references: [id], onDelete: Cascade)
+  dependencyType          DependencyType @default(DEPENDS_ON)
+
+  @@unique([taskTemplateId, dependsOnTaskTemplateId])
+  @@index([taskTemplateId])
+  @@index([dependsOnTaskTemplateId])
+}
+
+model RecurringTaskDefinition {
+  id                 String              @id @default(cuid())
+  projectId          String
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  title              String
+  description        String?
+  priority           TaskPriority        @default(MEDIUM)
+  estimatedHours     Float?
+  milestoneId        String?
+  milestone          Milestone?          @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  assigneeIds        String[]            @default([])
+  
+  frequency          RecurrenceFrequency @default(WEEKLY)
+  interval           Int                 @default(1) // every 1 week, every 2 weeks, etc.
+  daysOfWeek         Int[]               @default([]) // 1=Mon .. 7=Sun
+  dayOfMonth         Int?                // 1..31
+  
+  startDate          DateTime
+  endDate            DateTime?
+  nextRunDate        DateTime
+  lastGeneratedDate  DateTime?
+  isActive           Boolean             @default(true)
+  timezone           String              @default("UTC")
+  
+  createdById        String
+  createdBy          User                @relation("RecurringTaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+
+  @@index([projectId, isActive])
+  @@index([nextRunDate])
+  @@index([deletedAt])
+}
+
+model ProjectBaseline {
+  id             String                  @id @default(cuid())
+  projectId      String
+  project        Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  baselineNumber Int
+  name           String
+  description    String?
+
+  createdById    String
+  createdBy      User                    @relation("BaselineCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  
+  snapshot       ProjectBaselineSnapshot?
+  createdAt      DateTime                @default(now())
+
+  @@unique([projectId, baselineNumber])
+  @@index([projectId])
+  @@index([createdById])
+}
+
+model ProjectBaselineSnapshot {
+  id                  String          @id @default(cuid())
+  baselineId          String          @unique
+  baseline            ProjectBaseline @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+  
+  totalTasks          Int
+  totalMilestones     Int
+  totalEstimatedHours Float
+  plannedStartDate    DateTime?
+  plannedEndDate      DateTime?
+  snapshotData        Json            // Serialized snapshot of milestones, tasks, dependencies, estimations
+
+  createdAt           DateTime        @default(now())
+
+  @@index([baselineId])
+}
+
+model ProjectFinancial {
+  id           String    @id @default(cuid())
+  projectId    String    @unique
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  currency     String    @default("INR")
+  projectValue Int       @default(0) // Monetary value in integer currency units
+  
+  createdById  String
+  createdBy    User      @relation("FinancialSettingsCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@index([projectId])
+  @@index([createdById])
+  @@index([deletedAt])
+}
+
+model ClientPayment {
+  id              String        @id @default(cuid())
+  projectId       String
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  amount          Int           // Positive integer > 0
+  paymentDate     DateTime      @default(now())
+  paymentMethod   PaymentMethod @default(UPI)
+  referenceNumber String?
+  notes           String?
+  
+  createdById     String
+  createdBy       User          @relation("ClientPaymentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  @@index([projectId])
+  @@index([paymentDate])
+  @@index([createdById])
+  @@index([deletedAt])
+}
+
+model ProjectExpense {
+  id              String          @id @default(cuid())
+  projectId       String
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  category        ExpenseCategory @default(OTHER)
+  userId          String?         // Optional link to User for team member / developer project payments
+  user            User?           @relation("ExpenseRecipient", fields: [userId], references: [id], onDelete: SetNull)
+  
+  amount          Int             // Positive integer > 0
+  paymentDate     DateTime        @default(now())
+  paymentMethod   PaymentMethod?
+  referenceNumber String?
+  description     String
+  receiptUrl      String?
+  
+  createdById     String
+  createdBy       User            @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+
+  @@index([projectId])
+  @@index([category])
+  @@index([userId])
+  @@index([paymentDate])
+  @@index([createdById])
+  @@index([deletedAt])
+}
+
+model FinancialAuditLog {
+  id             String    @id @default(cuid())
+  actorId        String
+  actor          User      @relation("FinancialAuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+  action         String    // SET_PROJECT_VALUE, CREATE_PAYMENT, UPDATE_PAYMENT, DELETE_PAYMENT, CREATE_EXPENSE, UPDATE_EXPENSE, DELETE_EXPENSE
+  entityType     String    // PROJECT_FINANCIAL, CLIENT_PAYMENT, PROJECT_EXPENSE
+  entityId       String
+  projectId      String?
+  previousValues Json?
+  newValues      Json?
+  reason         String?
+  createdAt      DateTime  @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([projectId])
+  @@index([createdAt])
+}
+
+
+
