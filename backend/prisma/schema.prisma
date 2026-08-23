@@ -86,6 +86,14 @@ enum DocumentEntityType {
   TASK
 }
 
+enum TimesheetStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  LOCKED
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -96,6 +104,10 @@ enum AuditAction {
   ASSIGN
   UNASSIGN
   UPLOAD
+  SUBMIT
+  APPROVE
+  REJECT
+  LOCK
 }
 
 enum AuditEntityType {
@@ -110,6 +122,9 @@ enum AuditEntityType {
   COMMENT
   DOCUMENT
   AUTH
+  WORK_LOG
+  TIMESHEET
+  CAPACITY
 }
 
 model User {
@@ -144,6 +159,12 @@ model User {
   uploadedDocuments  Document[]      @relation("DocumentUploader")
   activityLogs       ActivityLog[]   @relation("UserActor")
 
+  // Phase 3 Relations
+  workLogs           WorkLog[]
+  timesheets         Timesheet[]     @relation("TimesheetOwner")
+  reviewedTimesheets Timesheet[]     @relation("TimesheetReviewer")
+  capacity           UserCapacity?
+
   @@index([email])
   @@index([status])
   @@index([departmentId])
@@ -168,8 +189,8 @@ model Role {
 model Permission {
   id          String           @id @default(cuid())
   code        String           @unique // e.g. users.create, projects.read
-  module      String           // e.g. users, projects, milestones, tasks, comments, documents
-  action      String           // e.g. create, read, update, delete, manage, assign, upload
+  module      String           // e.g. users, projects, milestones, tasks, comments, documents, timesheets, worklogs
+  action      String           // e.g. create, read, update, delete, manage, assign, upload, submit, approve, reject, lock
   description String
   createdAt   DateTime         @default(now())
 
@@ -313,12 +334,14 @@ model Project {
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
 
-  client     Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  owner      User            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  members    ProjectMember[]
-  milestones Milestone[]
-  tasks      Task[]
-  documents  Document[]
+  client          Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  owner           User              @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members         ProjectMember[]
+  milestones      Milestone[]
+  tasks           Task[]
+  documents       Document[]
+  workLogs        WorkLog[]
+  progressHistory ProgressHistory[]
 
   @@index([code])
   @@index([name])
@@ -392,6 +415,7 @@ model Task {
   dependedOnBy   TaskDependency[] @relation("DependedOnBy")
   comments       TaskComment[]
   attachments    Document[]       @relation("TaskAttachments")
+  workLogs       WorkLog[]
   
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -489,4 +513,83 @@ model ActivityLog {
   @@index([entityType, entityId])
   @@index([action])
   @@index([createdAt])
+}
+
+// ----------------------------------------------------
+// PHASE 3 MODELS: Time & Resource Management
+// ----------------------------------------------------
+
+model WorkLog {
+  id              String     @id @default(cuid())
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId          String
+  task            Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  timesheetId     String?
+  timesheet       Timesheet? @relation(fields: [timesheetId], references: [id], onDelete: SetNull)
+  date            DateTime
+  durationMinutes Int        // in integer minutes, e.g. 90 = 1h 30m
+  description     String?
+  billable        Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+
+  @@index([userId, date])
+  @@index([projectId])
+  @@index([taskId])
+  @@index([timesheetId])
+  @@index([deletedAt])
+}
+
+model Timesheet {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation("TimesheetOwner", fields: [userId], references: [id], onDelete: Cascade)
+  startDate       DateTime        // Beginning of week (e.g. Monday 00:00:00 UTC)
+  endDate         DateTime        // End of week (e.g. Sunday 23:59:59 UTC)
+  status          TimesheetStatus @default(DRAFT)
+  submittedAt     DateTime?
+  reviewedById    String?
+  reviewedBy      User?           @relation("TimesheetReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?
+  rejectionReason String?
+  
+  workLogs        WorkLog[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([userId, startDate])
+  @@index([userId, status])
+  @@index([startDate, endDate])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model UserCapacity {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyCapacityMinutes  Int      @default(480) // 8 hours = 480 mins
+  weeklyCapacityMinutes Int      @default(2400) // 40 hours = 2400 mins
+  workingDays           Int[]    @default([1, 2, 3, 4, 5]) // 1=Mon .. 5=Fri
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ProgressHistory {
+  id                  String   @id @default(cuid())
+  projectId           String
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  progress            Int      // 0 - 100
+  totalEstimatedHours Float?
+  totalActualMinutes  Int?
+  recordedAt          DateTime @default(now())
+
+  @@index([projectId, recordedAt])
 }

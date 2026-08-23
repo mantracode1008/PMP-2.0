@@ -18,6 +18,10 @@ import { TaskDependenciesModule } from './modules/task-dependencies/task-depende
 import { CommentsModule } from './modules/comments/comments.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { MyWorkModule } from './modules/my-work/my-work.module';
+import { WorkLogsModule } from './modules/worklogs/worklogs.module';
+import { TimesheetsModule } from './modules/timesheets/timesheets.module';
+import { WorkloadModule } from './modules/workload/workload.module';
+import { ProjectPlanningModule } from './modules/project-planning/project-planning.module';
 import { HealthModule } from './modules/health/health.module';
 
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -48,6 +52,10 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     CommentsModule,
     DocumentsModule,
     MyWorkModule,
+    WorkLogsModule,
+    TimesheetsModule,
+    WorkloadModule,
+    ProjectPlanningModule,
     HealthModule,
   ],
   providers: [

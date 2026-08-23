@@ -30,7 +30,8 @@ import {
   Edit2,
   Check,
 } from 'lucide-react';
-import { ApiResponse, DependencyType, Task, TaskPriority, TaskStatus } from '../../types';
+import { ApiResponse, DependencyType, Task, TaskPriority, TaskStatus, TaskTimeSummary, WorkLog } from '../../types';
+import { LogTimeModal } from '../timesheets/log-time-modal';
 
 interface TaskDetailDrawerProps {
   taskId: string | null;
@@ -47,10 +48,11 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const { user: authUser } = useAuth();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'details' | 'comments' | 'subtasks' | 'attachments' | 'dependencies'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'comments' | 'subtasks' | 'attachments' | 'dependencies' | 'time'>('details');
   const [newComment, setNewComment] = useState('');
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [isAddDepOpen, setIsAddDepOpen] = useState(false);
+  const [isLogTimeOpen, setIsLogTimeOpen] = useState(false);
   const [selectedDepTaskId, setSelectedDepTaskId] = useState('');
   const [selectedDepType, setSelectedDepType] = useState<DependencyType>('DEPENDS_ON');
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -63,6 +65,28 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       return res.data.data;
     },
     enabled: !!taskId,
+  });
+
+  // Time tracking summary query
+  const { data: timeSummary, refetch: refetchTime } = useQuery({
+    queryKey: ['task-time-summary', taskId],
+    queryFn: async () => {
+      if (!taskId) return null;
+      const res = await api.get<{ data: TaskTimeSummary }>(`/tasks/${taskId}/time-summary`);
+      return res.data.data;
+    },
+    enabled: !!taskId,
+  });
+
+  // Task work logs query
+  const { data: taskWorkLogs, refetch: refetchLogs } = useQuery({
+    queryKey: ['task-work-logs', taskId],
+    queryFn: async () => {
+      if (!taskId) return [];
+      const res = await api.get<{ data: WorkLog[] }>(`/worklogs?taskId=${taskId}`);
+      return res.data.data;
+    },
+    enabled: !!taskId && activeTab === 'time',
   });
 
   // Fetch sibling tasks for dependencies
@@ -352,6 +376,17 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 Dependencies ({task.dependencies?.length || 0})
               </button>
               <button
+                onClick={() => setActiveTab('time')}
+                className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1 ${
+                  activeTab === 'time'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                Time ({timeSummary?.loggedHours || 0}h)
+              </button>
+              <button
                 onClick={() => setActiveTab('attachments')}
                 className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1 ${
                   activeTab === 'attachments'
@@ -630,8 +665,115 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </div>
               </div>
             )}
+            {/* TAB: Time Tracking */}
+            {activeTab === 'time' && (
+              <div className="space-y-5">
+                {/* Time Metrics Grid */}
+                <div className="grid grid-cols-3 gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50/60 text-center">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Estimated</span>
+                    <p className="text-sm font-black text-slate-900 mt-0.5 font-mono">
+                      {timeSummary?.estimatedHours || 0}h
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Logged</span>
+                    <p className="text-sm font-black text-indigo-700 mt-0.5 font-mono">
+                      {timeSummary?.loggedHours || 0}h
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Remaining</span>
+                    <p className="text-sm font-black text-slate-900 mt-0.5 font-mono">
+                      {timeSummary?.remainingHours || 0}h
+                    </p>
+                  </div>
+                </div>
+
+                {/* Over estimate indicator */}
+                {timeSummary?.isOverEstimate && (
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between text-xs text-rose-800 font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <AlertCircle className="h-4 w-4 text-rose-600" />
+                      Task is over estimate
+                    </span>
+                    <span className="font-mono text-rose-700">+{timeSummary.overEstimateHours}h over budget</span>
+                  </div>
+                )}
+
+                {/* Actions & Work Logs Header */}
+                <div className="flex items-center justify-between pt-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Logged Work Time ({taskWorkLogs?.length || 0})
+                  </h4>
+                  <Button
+                    size="sm"
+                    onClick={() => setIsLogTimeOpen(true)}
+                    className="h-7 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-2.5"
+                  >
+                    <Plus className="h-3 w-3" /> Log Time
+                  </Button>
+                </div>
+
+                {/* Work Logs List */}
+                <div className="space-y-2">
+                  {taskWorkLogs && taskWorkLogs.length > 0 ? (
+                    taskWorkLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="p-3 rounded-xl border border-slate-100 bg-white hover:bg-slate-50/50 transition-colors text-xs flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900">
+                              {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'User'}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {formatDate(log.date)}
+                            </span>
+                            {log.billable && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Billable
+                              </span>
+                            )}
+                          </div>
+                          {log.description && (
+                            <p className="text-slate-600 mt-1 truncate">{log.description}</p>
+                          )}
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="font-mono font-bold text-indigo-700 text-xs">
+                            {Number((log.durationMinutes / 60).toFixed(1))}h
+                          </span>
+                          <span className="text-[10px] text-slate-400 block font-mono">
+                            ({log.durationMinutes}m)
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400 text-center py-6">
+                      No time entries logged against this task yet.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
+
+        <LogTimeModal
+          isOpen={isLogTimeOpen}
+          onClose={() => setIsLogTimeOpen(false)}
+          onSuccess={() => {
+            refetchTime();
+            refetchLogs();
+            queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+          }}
+          defaultProjectId={task?.projectId}
+          defaultTaskId={task?.id}
+        />
 
         {/* Add Dependency Modal */}
         <Dialog

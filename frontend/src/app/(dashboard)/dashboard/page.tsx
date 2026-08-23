@@ -21,8 +21,12 @@ import {
   FolderGit2,
   UserCheck,
   CheckCircle2,
+  Clock,
+  AlertOctagon,
+  FileSpreadsheet,
+  AlertTriangle,
 } from 'lucide-react';
-import { ActivityLog, ApiResponse, Project } from '../../../types';
+import { ActivityLog, ApiResponse, Project, WeeklyTimesheetGrid, WorkloadData, DeadlineData } from '../../../types';
 
 export default function DashboardPage() {
   const { user, isSuperAdmin, isAdmin } = useAuth();
@@ -53,6 +57,36 @@ export default function DashboardPage() {
       return res.data.data;
     },
   });
+
+  // Phase 3: Workload query for admins
+  const { data: workloadData } = useQuery({
+    queryKey: ['dashboard-workload'],
+    queryFn: async () => {
+      const res = await api.get<{ data: WorkloadData }>('/workload');
+      return res.data.data;
+    },
+    enabled: isAdmin,
+  });
+
+  // Phase 3: My Timesheets for user
+  const { data: myTimesheetData } = useQuery({
+    queryKey: ['dashboard-my-timesheet'],
+    queryFn: async () => {
+      const res = await api.get<{ data: WeeklyTimesheetGrid }>('/timesheets/my');
+      return res.data.data;
+    },
+  });
+
+  // Phase 3: Deadlines & Overdue
+  const { data: deadlineData } = useQuery({
+    queryKey: ['dashboard-deadlines'],
+    queryFn: async () => {
+      const res = await api.get<{ data: DeadlineData }>('/planning/deadlines');
+      return res.data.data;
+    },
+  });
+
+  // Recent Projects
 
   // Recent Projects
   const { data: recentProjects } = useQuery({
@@ -136,50 +170,73 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {isAdmin && (
+        {/* Phase 3: Workload & Utilization Card (For Admins) */}
+        {isAdmin && workloadData?.summary && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Total Clients
+                Team Workload
               </CardTitle>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                <Building2 className="h-4 w-4" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
+                <AlertOctagon className="h-4 w-4" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{clientMetrics?.totalClients ?? '—'}</div>
+              <div className="text-2xl font-bold text-slate-900">{workloadData.summary.averageUtilization}%</div>
               <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                <span className="font-semibold text-emerald-600">{clientMetrics?.activeClients ?? 0}</span> active accounts
+                {workloadData.summary.overloadedCount > 0 ? (
+                  <span className="font-semibold text-rose-600">{workloadData.summary.overloadedCount} overloaded</span>
+                ) : (
+                  <span className="font-semibold text-emerald-600">All healthy</span>
+                )}{' '}
+                • {workloadData.summary.totalAssignedHours}h / {workloadData.summary.totalCapacityHours}h
               </p>
             </CardContent>
           </Card>
         )}
 
+        {/* Phase 3: My Timesheets Card (For All Users) */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Project Health
+              This Week Logged
             </CardTitle>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-              <TrendingUp className="h-4 w-4" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+              <Clock className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-3 mt-1">
-              <div className="flex items-center gap-1 text-xs">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span className="font-semibold text-slate-700">{projectMetrics?.health?.healthy ?? 0}</span>
-              </div>
-              <div className="flex items-center gap-1 text-xs">
-                <span className="h-2 w-2 rounded-full bg-amber-500" />
-                <span className="font-semibold text-slate-700">{projectMetrics?.health?.atRisk ?? 0}</span>
-              </div>
-              <div className="flex items-center gap-1 text-xs">
-                <span className="h-2 w-2 rounded-full bg-rose-500" />
-                <span className="font-semibold text-slate-700">{projectMetrics?.health?.critical ?? 0}</span>
-              </div>
+            <div className="text-2xl font-bold text-slate-900 font-mono">
+              {myTimesheetData?.timesheet?.weeklyTotalHours || 0}h
             </div>
-            <p className="text-xs text-slate-500 mt-2">Healthy / At-Risk / Critical</p>
+            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+              Status:{' '}
+              <span className="font-bold text-indigo-600">
+                {myTimesheetData?.timesheet?.status || 'DRAFT'}
+              </span>
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Phase 3: Deadlines & Overdue Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Deadlines & Overdue
+            </CardTitle>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900">
+              {deadlineData?.metrics.overdueCount || 0}
+            </div>
+            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+              <span className="font-semibold text-rose-600">{deadlineData?.metrics.overdueCount || 0} overdue</span>
+              {' • '}
+              <span className="font-semibold text-amber-600">{deadlineData?.metrics.dueSoonCount || 0} due soon</span>
+            </p>
           </CardContent>
         </Card>
       </div>

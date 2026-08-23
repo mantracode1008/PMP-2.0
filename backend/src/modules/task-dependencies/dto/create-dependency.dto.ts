@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsEnum, IsString } from 'class-validator';
+import { IsNotEmpty, IsEnum, IsString, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { DependencyType } from '@prisma/client';
 
@@ -8,8 +8,8 @@ export class CreateDependencyDto {
   @IsString()
   dependsOnTaskId: string;
 
-  @ApiProperty({ enum: DependencyType, default: DependencyType.DEPENDS_ON })
-  @IsNotEmpty()
+  @ApiProperty({ enum: DependencyType, default: DependencyType.DEPENDS_ON, required: false })
+  @IsOptional()
   @IsEnum(DependencyType)
-  dependencyType: DependencyType;
+  dependencyType?: DependencyType;
 }

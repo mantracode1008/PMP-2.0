@@ -18,6 +18,9 @@ import {
   User,
   LogOut,
   FolderGit2,
+  Clock,
+  FileSpreadsheet,
+  BarChart3,
 } from 'lucide-react';
 
 interface NavItem {
@@ -32,12 +35,15 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, section: 'main' },
   { label: 'My Work', href: '/my-work', icon: CheckSquare, section: 'main' },
+  { label: 'My Timesheets', href: '/my-timesheets', icon: Clock, section: 'main' },
   { label: 'Projects', href: '/projects', icon: Briefcase, permission: 'projects.read', section: 'main' },
   { label: 'Clients', href: '/clients', icon: Building2, permission: 'clients.read', section: 'main' },
   { label: 'Teams', href: '/teams', icon: Users2, permission: 'teams.read', section: 'main' },
   { label: 'Departments', href: '/departments', icon: Building, permission: 'departments.read', section: 'main' },
 
   // Admin Section
+  { label: 'Team Workload', href: '/workload', icon: BarChart3, permission: 'workload.read', section: 'admin' },
+  { label: 'Timesheets', href: '/timesheets', icon: FileSpreadsheet, permission: 'timesheets.approve', section: 'admin' },
   { label: 'Users', href: '/users', icon: UserCheck, permission: 'users.read', section: 'admin' },
   { label: 'Roles & Access', href: '/roles', icon: ShieldCheck, permission: 'roles.read', section: 'admin' },
 

@@ -329,6 +329,329 @@ export interface PaginatedMeta {
 
 export type ActivityLog = ActivityLogItem;
 
+// ==========================================
+// PHASE 3 TYPES: Time & Resource Management
+// ==========================================
+
+export type TimesheetStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'LOCKED';
+export type WorkloadStatus = 'AVAILABLE' | 'HEALTHY' | 'NEAR_CAPACITY' | 'OVERLOADED';
+
+export interface WorkLog {
+  id: string;
+  userId: string;
+  user?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    avatarUrl?: string | null;
+  };
+  projectId: string;
+  project?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  taskId: string;
+  task?: {
+    id: string;
+    taskNumber: number;
+    title: string;
+    estimatedHours?: number | null;
+    status: TaskStatus;
+  };
+  timesheetId?: string | null;
+  date: string;
+  durationMinutes: number;
+  description?: string | null;
+  billable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskTimeSummary {
+  taskId: string;
+  estimatedHours: number;
+  loggedMinutes: number;
+  loggedHours: number;
+  remainingHours: number;
+  overEstimateHours: number;
+  isOverEstimate: boolean;
+}
+
+export interface Timesheet {
+  id: string;
+  userId: string;
+  user?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    avatarUrl?: string | null;
+  };
+  startDate: string;
+  endDate: string;
+  status: TimesheetStatus;
+  submittedAt?: string | null;
+  reviewedById?: string | null;
+  reviewedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
+  totalMinutes?: number;
+  totalHours?: number;
+  workLogCount?: number;
+  workLogs?: WorkLog[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TimesheetTaskRow {
+  task: {
+    id: string;
+    taskNumber: number;
+    title: string;
+    status: TaskStatus;
+    estimatedHours?: number | null;
+  };
+  project: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  days: {
+    [dayIndex: number]: {
+      durationMinutes: number;
+      logIds: string[];
+    };
+  };
+  totalMinutes: number;
+  totalHours: number;
+}
+
+export interface WeeklyTimesheetGrid {
+  timesheet: Timesheet & { weeklyTotalMinutes: number; weeklyTotalHours: number };
+  dailyTotals: {
+    monday: { minutes: number; hours: number };
+    tuesday: { minutes: number; hours: number };
+    wednesday: { minutes: number; hours: number };
+    thursday: { minutes: number; hours: number };
+    friday: { minutes: number; hours: number };
+    saturday: { minutes: number; hours: number };
+    sunday: { minutes: number; hours: number };
+  };
+  taskRows: TimesheetTaskRow[];
+  rawWorkLogs: WorkLog[];
+}
+
+export interface UserCapacity {
+  id: string;
+  userId: string;
+  dailyCapacityMinutes: number;
+  dailyCapacityHours: number;
+  weeklyCapacityMinutes: number;
+  weeklyCapacityHours: number;
+  workingDays: number[];
+  user?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}
+
+export interface WorkloadUser {
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    avatarUrl?: string | null;
+    department?: { id: string; name: string } | null;
+    teams?: { id: string; name: string }[];
+  };
+  capacity: {
+    dailyCapacityMinutes: number;
+    dailyCapacityHours: number;
+    weeklyCapacityMinutes: number;
+    weeklyCapacityHours: number;
+    workingDays: number[];
+  };
+  assignedEstimatedHours: number;
+  actualLoggedMinutes: number;
+  actualLoggedHours: number;
+  openTasksCount: number;
+  overdueTasksCount: number;
+  utilization: number;
+  status: WorkloadStatus;
+}
+
+export interface WorkloadSummary {
+  totalUsers: number;
+  totalCapacityHours: number;
+  totalAssignedHours: number;
+  totalLoggedHours: number;
+  averageUtilization: number;
+  overloadedCount: number;
+  nearCapacityCount: number;
+  healthyCount: number;
+  availableCount: number;
+}
+
+export interface WorkloadData {
+  summary: WorkloadSummary;
+  users: WorkloadUser[];
+}
+
+export interface ProjectProgressSnapshot {
+  progress: number;
+  recordedAt: string;
+  totalEstimatedHours: number | null;
+  totalActualHours: number;
+}
+
+export interface ProjectMilestoneProgress {
+  id: string;
+  name: string;
+  status: MilestoneStatus;
+  startDate?: string | null;
+  dueDate?: string | null;
+  totalTasks: number;
+  completedTasks: number;
+  progress: number;
+}
+
+export interface ProjectProgressData {
+  projectId: string;
+  projectName: string;
+  projectCode: string;
+  health: ProjectHealth;
+  status: ProjectStatus;
+  overallProgress: number;
+  metrics: {
+    totalTasks: number;
+    completedTasks: number;
+    totalEstimatedHours: number;
+    totalActualMinutes: number;
+    totalActualHours: number;
+  };
+  milestones: ProjectMilestoneProgress[];
+  history: ProjectProgressSnapshot[];
+}
+
+export interface TimelineSubtask {
+  id: string;
+  taskNumber: number;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  progress: number;
+  startDate?: string | null;
+  dueDate?: string | null;
+  assignees: { id: string; firstName: string; lastName: string; avatarUrl?: string | null }[];
+}
+
+export interface TimelineTask {
+  id: string;
+  taskNumber: number;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  progress: number;
+  startDate?: string | null;
+  dueDate?: string | null;
+  durationDays: number;
+  estimatedHours?: number | null;
+  assignees: { id: string; firstName: string; lastName: string; avatarUrl?: string | null }[];
+  dependencies: {
+    type: DependencyType;
+    dependsOnTaskId: string;
+    dependsOnTaskNumber: number;
+    dependsOnTitle: string;
+  }[];
+  blocking: {
+    blockedTaskId: string;
+    blockedTaskNumber: number;
+    blockedTitle: string;
+  }[];
+  subtasks: TimelineSubtask[];
+}
+
+export interface TimelineMilestone {
+  type: 'MILESTONE';
+  id: string;
+  name: string;
+  status: MilestoneStatus;
+  startDate?: string | null;
+  dueDate?: string | null;
+  durationDays: number;
+  progress: number;
+  tasks: TimelineTask[];
+}
+
+export interface ProjectTimelineData {
+  project: {
+    id: string;
+    name: string;
+    code: string;
+    startDate?: string | null;
+    targetDate?: string | null;
+  };
+  tree: TimelineMilestone[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  entityType: 'TASK' | 'MILESTONE';
+  taskNumber?: number;
+  title: string;
+  startDate?: string | null;
+  dueDate?: string | null;
+  status: string;
+  priority?: TaskPriority;
+  progress?: number;
+  milestone?: { id: string; name: string } | null;
+  assignees?: { id: string; firstName: string; lastName: string; avatarUrl?: string | null }[];
+  isMilestone: boolean;
+}
+
+export interface ProjectTimeSummary {
+  projectId: string;
+  projectName: string;
+  projectCode: string;
+  totalEstimatedHours: number;
+  totalActualMinutes: number;
+  totalActualHours: number;
+  remainingEstimatedHours: number;
+  overEstimateTasksCount: number;
+  overEstimateTasks: {
+    id: string;
+    taskNumber: number;
+    title: string;
+    estimatedHours: number;
+    loggedHours: number;
+    overHours: number;
+  }[];
+}
+
+export interface DeadlineData {
+  metrics: {
+    totalOpenTasks: number;
+    overdueCount: number;
+    dueTodayCount: number;
+    dueSoonCount: number;
+    noDueDateCount: number;
+  };
+  overdue: Task[];
+  dueToday: Task[];
+  dueSoon: Task[];
+  noDueDate: Task[];
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   statusCode: number;

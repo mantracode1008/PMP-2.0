@@ -45,7 +45,21 @@ import { DocumentListView } from '../../../../features/documents/document-list-v
 import { DocumentUploadDialog } from '../../../../features/documents/document-upload-dialog';
 import { ActivityTimelineView } from '../../../../features/activity/activity-timeline-view';
 
-type WorkspaceTab = 'overview' | 'tasks' | 'board' | 'milestones' | 'documents' | 'activity';
+// Phase 3 Planning & Time Features
+import { GanttChartView } from '../../../../features/planning/gantt-chart-view';
+import { ProjectCalendarView } from '../../../../features/planning/project-calendar-view';
+import { ProjectTimeSummaryWidget } from '../../../../features/planning/project-time-summary-widget';
+
+type WorkspaceTab =
+  | 'overview'
+  | 'tasks'
+  | 'board'
+  | 'timeline'
+  | 'calendar'
+  | 'time-tracking'
+  | 'milestones'
+  | 'documents'
+  | 'activity';
 
 export default function ProjectWorkspacePage() {
   const { id } = useParams<{ id: string }>();
@@ -376,6 +390,42 @@ export default function ProjectWorkspacePage() {
         </button>
 
         <button
+          onClick={() => setActiveTab('timeline')}
+          className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors border-b-2 ${
+            activeTab === 'timeline'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <Calendar className="h-4 w-4" />
+          Timeline & Gantt
+        </button>
+
+        <button
+          onClick={() => setActiveTab('calendar')}
+          className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors border-b-2 ${
+            activeTab === 'calendar'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <Calendar className="h-4 w-4" />
+          Calendar
+        </button>
+
+        <button
+          onClick={() => setActiveTab('time-tracking')}
+          className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors border-b-2 ${
+            activeTab === 'time-tracking'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <Calendar className="h-4 w-4" />
+          Time & Progress
+        </button>
+
+        <button
           onClick={() => setActiveTab('milestones')}
           className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors border-b-2 ${
             activeTab === 'milestones'
@@ -471,7 +521,28 @@ export default function ProjectWorkspacePage() {
         />
       )}
 
-      {/* 3. Milestones Tab */}
+      {/* 3. Gantt & Timeline Tab */}
+      {activeTab === 'timeline' && (
+        <GanttChartView
+          projectId={id}
+          onSelectTask={(taskId) => setSelectedDrawerTaskId(taskId)}
+        />
+      )}
+
+      {/* 4. Project Calendar Tab */}
+      {activeTab === 'calendar' && (
+        <ProjectCalendarView
+          projectId={id}
+          onSelectTask={(taskId) => setSelectedDrawerTaskId(taskId)}
+        />
+      )}
+
+      {/* 5. Time & Progress Tracking Tab */}
+      {activeTab === 'time-tracking' && (
+        <ProjectTimeSummaryWidget projectId={id} />
+      )}
+
+      {/* 6. Milestones Tab */}
       {activeTab === 'milestones' && (
         <MilestoneListView
           milestones={milestonesData || []}

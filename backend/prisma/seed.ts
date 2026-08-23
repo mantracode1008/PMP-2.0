@@ -80,6 +80,26 @@ const PERMISSIONS = [
 
   // Activity Logs
   { code: 'activity_logs.read', module: 'activity_logs', action: 'read', description: 'View audit and activity logs' },
+
+  // Work Logs (Phase 3)
+  { code: 'worklogs.create', module: 'worklogs', action: 'create', description: 'Log time on assigned tasks' },
+  { code: 'worklogs.read', module: 'worklogs', action: 'read', description: 'View work logs and timesheets' },
+  { code: 'worklogs.update', module: 'worklogs', action: 'update', description: 'Edit time logs' },
+  { code: 'worklogs.delete', module: 'worklogs', action: 'delete', description: 'Delete time logs' },
+
+  // Timesheets (Phase 3)
+  { code: 'timesheets.create', module: 'timesheets', action: 'create', description: 'Create and edit draft weekly timesheets' },
+  { code: 'timesheets.read', module: 'timesheets', action: 'read', description: 'View timesheet submissions' },
+  { code: 'timesheets.submit', module: 'timesheets', action: 'submit', description: 'Submit timesheets for approval' },
+  { code: 'timesheets.approve', module: 'timesheets', action: 'approve', description: 'Approve team timesheets' },
+  { code: 'timesheets.reject', module: 'timesheets', action: 'reject', description: 'Reject timesheets with feedback' },
+  { code: 'timesheets.lock', module: 'timesheets', action: 'lock', description: 'Lock approved timesheets' },
+
+  // Planning, Workload & Calendar (Phase 3)
+  { code: 'calendar.read', module: 'calendar', action: 'read', description: 'View project schedule calendar' },
+  { code: 'workload.read', module: 'workload', action: 'read', description: 'View resource workload and capacity allocation' },
+  { code: 'timeline.read', module: 'timeline', action: 'read', description: 'View project timeline and Gantt charts' },
+  { code: 'progress.read', module: 'progress', action: 'read', description: 'View project progress metrics and history' },
 ];
 
 async function main() {
@@ -184,6 +204,17 @@ async function main() {
     'comments.update',
     'documents.read',
     'documents.upload',
+    // Phase 3 Permissions
+    'worklogs.create',
+    'worklogs.read',
+    'worklogs.update',
+    'worklogs.delete',
+    'timesheets.create',
+    'timesheets.read',
+    'timesheets.submit',
+    'calendar.read',
+    'timeline.read',
+    'progress.read',
   ];
   for (const code of userPermissions) {
     const permId = permissionMap.get(code);
@@ -687,7 +718,95 @@ async function main() {
     },
   });
 
-  console.log('✅ Seed completed successfully for Phase 1 & Phase 2!');
+  // 14. Phase 3 Seeding: User Capacities, Work Logs, Timesheets
+  console.log('  → Seeding Phase 3: User Capacities & Working Schedules...');
+  await prisma.workLog.deleteMany();
+  await prisma.timesheet.deleteMany();
+  await prisma.userCapacity.deleteMany();
+  await prisma.progressHistory.deleteMany();
+
+  const allUsers = [superAdminUser, adminUser, developerUser, designerUser];
+  for (const u of allUsers) {
+    await prisma.userCapacity.upsert({
+      where: { userId: u.id },
+      update: {},
+      create: {
+        userId: u.id,
+        dailyCapacityMinutes: 480, // 8 hours
+        weeklyCapacityMinutes: 2400, // 40 hours
+        workingDays: [1, 2, 3, 4, 5],
+      },
+    });
+  }
+
+  console.log('  → Seeding Phase 3: Sample Work Logs & Timesheets...');
+  // Work logs for developerUser on Task 1 and Task 2
+  const logDate1 = new Date('2026-03-23T10:00:00Z');
+  const logDate2 = new Date('2026-03-24T14:30:00Z');
+  const logDate3 = new Date('2026-03-25T09:00:00Z');
+
+  const workLog1 = await prisma.workLog.create({
+    data: {
+      userId: developerUser.id,
+      projectId: project1.id,
+      taskId: task1.id,
+      date: logDate1,
+      durationMinutes: 240, // 4h
+      description: 'Setup base Alpine image and installed nestjs build tooling',
+      billable: true,
+    },
+  });
+
+  const workLog2 = await prisma.workLog.create({
+    data: {
+      userId: developerUser.id,
+      projectId: project1.id,
+      taskId: task2.id,
+      date: logDate2,
+      durationMinutes: 180, // 3h
+      description: 'Configured pg_hba.conf and SSL authentication for standbys',
+      billable: true,
+    },
+  });
+
+  const workLog3 = await prisma.workLog.create({
+    data: {
+      userId: developerUser.id,
+      projectId: project1.id,
+      taskId: task2.id,
+      date: logDate3,
+      durationMinutes: 120, // 2h
+      description: 'Tested failover latency across simulated AZ drop',
+      billable: true,
+    },
+  });
+
+  // Seed Weekly Timesheet for Developer (Submitted)
+  const timesheetDev = await prisma.timesheet.create({
+    data: {
+      userId: developerUser.id,
+      startDate: new Date('2026-03-23T00:00:00Z'),
+      endDate: new Date('2026-03-29T23:59:59Z'),
+      status: 'SUBMITTED',
+      submittedAt: new Date('2026-03-29T18:00:00Z'),
+      workLogs: {
+        connect: [{ id: workLog1.id }, { id: workLog2.id }, { id: workLog3.id }],
+      },
+    },
+  });
+
+  // Seed Progress Snapshot
+  await prisma.progressHistory.create({
+    data: {
+      projectId: project1.id,
+      progress: 65,
+      totalEstimatedHours: 64,
+      totalActualMinutes: 540, // 9 hours
+      recordedAt: new Date('2026-03-25T18:00:00Z'),
+    },
+  });
+
+  console.log('✅ Seed completed successfully for Phase 1, Phase 2 & Phase 3!');
   console.log('----------------------------------------------------');
   console.log('Default Credentials:');
   console.log(`  Super Admin: ${superAdminEmail} / ${superAdminPassword}`);
