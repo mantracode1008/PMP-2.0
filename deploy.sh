@@ -79,16 +79,22 @@ npm run build
 # 8. Start / Restart PM2 Services
 echo "🔁 Starting / Reloading Services in PM2..."
 
+if [ -f "$DEPLOY_DIR/backend/dist/src/main.js" ]; then
+  ENTRY_FILE="$DEPLOY_DIR/backend/dist/src/main.js"
+else
+  ENTRY_FILE="$DEPLOY_DIR/backend/dist/main.js"
+fi
+
 if pm2 describe pmp-backend > /dev/null 2>&1; then
   pm2 restart pmp-backend --update-env
 else
-  pm2 start $DEPLOY_DIR/backend/dist/main.js --name "pmp-backend" --cwd $DEPLOY_DIR/backend
+  pm2 start "$ENTRY_FILE" --name "pmp-backend" --cwd "$DEPLOY_DIR/backend"
 fi
 
 if pm2 describe pmp-frontend > /dev/null 2>&1; then
   pm2 restart pmp-frontend --update-env
 else
-  pm2 start npm --name "pmp-frontend" --cwd $DEPLOY_DIR/frontend -- start -- -p 3000
+  pm2 start npm --name "pmp-frontend" --cwd "$DEPLOY_DIR/frontend" -- start -- -p 3000
 fi
 
 pm2 save
