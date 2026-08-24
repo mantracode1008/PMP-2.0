@@ -38,8 +38,8 @@ jobs:
             export PATH=$PATH:/usr/local/bin:/usr/bin:~/.nvm/versions/node/$(ls ~/.nvm/versions/node 2>/dev/null | tail -n 1)/bin
 
             echo "🚀 Starting PMP Deployment..."
-            node -v
-            npm -v
+            node -v || true
+            npm -v || true
 
             # 2. Ensure PM2 and Git are available
             command -v pm2 >/dev/null 2>&1 || npm install -g pm2
@@ -78,29 +78,28 @@ jobs:
 
             # 5. Configure Backend Environment
             mkdir -p $DEPLOY_DIR/backend
-            cat << EOF > $DEPLOY_DIR/backend/.env
-NODE_ENV=production
-PORT=4000
-DATABASE_URL="${{ secrets.DATABASE_URL || 'postgresql://pmp_user:Letvar@1810@localhost:5432/pmp_db?schema=public' }}"
-
-JWT_SECRET="${{ secrets.JWT_SECRET || 'pmp_jwt_super_secret_key_2026_production' }}"
-JWT_EXPIRES_IN="15m"
-JWT_REFRESH_SECRET="${{ secrets.JWT_REFRESH_SECRET || 'pmp_refresh_super_secret_key_2026_production' }}"
-JWT_REFRESH_EXPIRES_IN="7d"
-
-SUPER_ADMIN_EMAIL="${{ secrets.SUPER_ADMIN_EMAIL || 'admin@pmp.local' }}"
-SUPER_ADMIN_PASSWORD="${{ secrets.SUPER_ADMIN_PASSWORD || 'SuperAdmin123!' }}"
-SUPER_ADMIN_FIRST_NAME="System"
-SUPER_ADMIN_LAST_NAME="Super Admin"
-
-CORS_ORIGIN="$FRONTEND_ORIGIN,http://${{ secrets.VPS_HOST }}:3000,http://localhost:3000"
-EOF
+            cat << 'ENVEOF' > $DEPLOY_DIR/backend/.env
+            NODE_ENV=production
+            PORT=4000
+            DATABASE_URL=postgresql://pmp_user:Letvar@1810@localhost:5432/pmp_db?schema=public
+            JWT_SECRET=pmp_jwt_super_secret_key_2026_production
+            JWT_EXPIRES_IN=15m
+            JWT_REFRESH_SECRET=pmp_refresh_super_secret_key_2026_production
+            JWT_REFRESH_EXPIRES_IN=7d
+            SUPER_ADMIN_EMAIL=admin@pmp.local
+            SUPER_ADMIN_PASSWORD=SuperAdmin123!
+            SUPER_ADMIN_FIRST_NAME=System
+            SUPER_ADMIN_LAST_NAME=Super Admin
+            CORS_ORIGIN=https://pmp.letvarsolution.com,http://145.223.22.204:3000,http://localhost:3000
+            ENVEOF
+            sed -i 's/^[[:space:]]*//' $DEPLOY_DIR/backend/.env
 
             # 6. Configure Frontend Environment
             mkdir -p $DEPLOY_DIR/frontend
-            cat << EOF > $DEPLOY_DIR/frontend/.env.local
-NEXT_PUBLIC_API_URL="$API_URL"
-EOF
+            cat << 'ENVEOF' > $DEPLOY_DIR/frontend/.env.local
+            NEXT_PUBLIC_API_URL=https://pmp.letvarsolution.com/api/v1
+            ENVEOF
+            sed -i 's/^[[:space:]]*//' $DEPLOY_DIR/frontend/.env.local
 
             # 7. Install Backend Dependencies & Run Migrations
             echo "⚙️ Building Backend & Syncing Database..."
