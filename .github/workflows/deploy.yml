@@ -25,7 +25,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || '145.223.22.204' }}
           username: ${{ secrets.VPS_USER || secrets.VPS_USERNAME || 'root' }}
-          password: ${{ secrets.VPS_PASSWORD }}
+          password: ${{ secrets.VPS_PASSWORD || secrets.SSH_PASSWORD || secrets.PASSWORD || secrets.VPS_PASS }}
           port: 22
           timeout: 60s
           script_stop: true
