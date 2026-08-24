@@ -11,6 +11,7 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import {
   FinanceDashboardQueryDto,
+  PaymentReminderQueryDto,
   TeamMemberFinanceQueryDto,
 } from '../dto/finance-query.dto';
 import { FinanceDashboardService } from '../services/finance-dashboard.service';
@@ -29,6 +30,13 @@ export class FinanceController {
   @ApiOperation({ summary: 'Get global financial dashboard metrics across projects' })
   getDashboardMetrics(@Query() query: FinanceDashboardQueryDto) {
     return this.financeDashboardService.getDashboardMetrics(query);
+  }
+
+  @Get('payment-reminders')
+  @RequirePermissions('finance.read')
+  @ApiOperation({ summary: 'Get client payment due date reminders and alert metrics' })
+  getPaymentReminders(@Query() query: PaymentReminderQueryDto) {
+    return this.financeDashboardService.getPaymentReminders(query);
   }
 
   @Get('team-members')

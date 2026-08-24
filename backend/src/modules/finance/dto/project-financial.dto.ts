@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDate, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export class SetProjectFinancialDto {
   @ApiProperty({ description: 'Total financial / contract value of the project', example: 50000 })
@@ -11,6 +12,23 @@ export class SetProjectFinancialDto {
   @IsString()
   @IsOptional()
   currency?: string;
+
+  @ApiPropertyOptional({ description: 'Expected date of next client payment', example: '2026-09-01T00:00:00.000Z' })
+  @Type(() => Date)
+  @IsDate()
+  @IsOptional()
+  nextPaymentDueDate?: Date | null;
+
+  @ApiPropertyOptional({ description: 'Expected amount for next client payment', example: 25000 })
+  @IsInt()
+  @Min(1, { message: 'Next payment amount must be greater than zero' })
+  @IsOptional()
+  nextPaymentAmount?: number | null;
+
+  @ApiPropertyOptional({ description: 'Notes or milestones for the upcoming payment', example: '50% on milestone 2 delivery' })
+  @IsString()
+  @IsOptional()
+  paymentReminderNotes?: string | null;
 }
 
 export class UpdateProjectFinancialDto {
@@ -24,4 +42,21 @@ export class UpdateProjectFinancialDto {
   @IsString()
   @IsOptional()
   currency?: string;
+
+  @ApiPropertyOptional({ description: 'Expected date of next client payment', example: '2026-09-01T00:00:00.000Z' })
+  @Type(() => Date)
+  @IsDate()
+  @IsOptional()
+  nextPaymentDueDate?: Date | null;
+
+  @ApiPropertyOptional({ description: 'Expected amount for next client payment', example: 25000 })
+  @IsInt()
+  @Min(1, { message: 'Next payment amount must be greater than zero' })
+  @IsOptional()
+  nextPaymentAmount?: number | null;
+
+  @ApiPropertyOptional({ description: 'Notes or milestones for the upcoming payment', example: '50% on milestone 2 delivery' })
+  @IsString()
+  @IsOptional()
+  paymentReminderNotes?: string | null;
 }

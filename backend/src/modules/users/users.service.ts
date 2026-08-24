@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import {
 } from './dto/create-user.dto';
 import { createPaginatedResult } from '../../common/dto/pagination.dto';
 import { AuditAction, AuditEntityType, Prisma, UserStatus } from '@prisma/client';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 @Injectable()
 export class UsersService {
@@ -22,23 +24,38 @@ export class UsersService {
     private readonly activityLogs: ActivityLogsService,
   ) {}
 
-  async findAll(query: UserQueryDto) {
+  async findAll(query: UserQueryDto, requester?: AuthenticatedUser) {
     const { page = 1, limit = 10, search, status, departmentId, role, sortBy = 'createdAt', sortOrder = 'desc' } = query;
     const skip = (page - 1) * limit;
+    const isSuperAdmin = requester?.roles?.includes('SUPER_ADMIN');
 
     const where: Prisma.UserWhereInput = {
       deletedAt: null,
     };
 
+    if (!isSuperAdmin) {
+      where.userRoles = {
+        none: {
+          role: { name: 'SUPER_ADMIN' },
+        },
+      };
+    }
+
     if (status) where.status = status;
     if (departmentId) where.departmentId = departmentId;
 
     if (role) {
-      where.userRoles = {
-        some: {
-          OR: [{ role: { name: role } }, { roleId: role }],
-        },
-      };
+      if (!isSuperAdmin && role === 'SUPER_ADMIN') {
+        where.id = '00000000-0000-0000-0000-000000000000';
+      } else {
+        where.userRoles = {
+          ...(where.userRoles || {}),
+          some: {
+            OR: [{ role: { name: role } }, { roleId: role }],
+          },
+          ...(!isSuperAdmin ? { none: { role: { name: 'SUPER_ADMIN' } } } : {}),
+        };
+      }
     }
 
     if (search) {
@@ -95,7 +112,7 @@ export class UsersService {
     return createPaginatedResult(formatted, total, page, limit);
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, requester?: AuthenticatedUser) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
@@ -131,6 +148,13 @@ export class UsersService {
     }
 
     const roles = user.userRoles.map((ur) => ur.role.name);
+    const isTargetSuperAdmin = roles.includes('SUPER_ADMIN');
+    const isRequesterSuperAdmin = requester?.roles?.includes('SUPER_ADMIN');
+
+    if (isTargetSuperAdmin && !isRequesterSuperAdmin && requester?.id !== id) {
+      throw new NotFoundException(`User with ID "${id}" not found.`);
+    }
+
     const permissionSet = new Set<string>();
     if (roles.includes('SUPER_ADMIN')) {
       permissionSet.add('*');
@@ -160,7 +184,14 @@ export class UsersService {
     };
   }
 
-  async create(dto: CreateUserDto, actorId?: string) {
+  async create(dto: CreateUserDto, actorId?: string, requester?: AuthenticatedUser) {
+    const isRequesterSuperAdmin = requester?.roles?.includes('SUPER_ADMIN');
+    const roleNamesOrIds = dto.roles && dto.roles.length > 0 ? dto.roles : ['USER'];
+
+    if (roleNamesOrIds.includes('SUPER_ADMIN') && !isRequesterSuperAdmin) {
+      throw new ForbiddenException('Only Super Administrators can create Super Administrator accounts.');
+    }
+
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase().trim() },
     });
@@ -172,7 +203,6 @@ export class UsersService {
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     // Resolve roles
-    const roleNamesOrIds = dto.roles && dto.roles.length > 0 ? dto.roles : ['USER'];
     const matchedRoles = await this.prisma.role.findMany({
       where: {
         OR: [
@@ -232,8 +262,18 @@ export class UsersService {
     };
   }
 
-  async update(id: string, dto: UpdateUserDto, actorId?: string) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateUserDto, actorId?: string, requester?: AuthenticatedUser) {
+    const targetUser = await this.findOne(id, requester);
+    const isTargetSuperAdmin = targetUser.roles.some((r) => r.name === 'SUPER_ADMIN');
+    const isRequesterSuperAdmin = requester?.roles?.includes('SUPER_ADMIN');
+
+    if (isTargetSuperAdmin && !isRequesterSuperAdmin && requester?.id !== id) {
+      throw new ForbiddenException('Administrators cannot modify Super Administrators.');
+    }
+
+    if (dto.roles !== undefined && dto.roles.includes('SUPER_ADMIN') && !isRequesterSuperAdmin) {
+      throw new ForbiddenException('Only Super Administrators can assign the Super Administrator role.');
+    }
 
     const updateData: Prisma.UserUpdateInput = {};
     if (dto.firstName !== undefined) updateData.firstName = dto.firstName;
@@ -296,8 +336,14 @@ export class UsersService {
     };
   }
 
-  async updateStatus(id: string, dto: UpdateUserStatusDto, actorId?: string) {
-    const user = await this.findOne(id);
+  async updateStatus(id: string, dto: UpdateUserStatusDto, actorId?: string, requester?: AuthenticatedUser) {
+    const user = await this.findOne(id, requester);
+    const isTargetSuperAdmin = user.roles.some((r) => r.name === 'SUPER_ADMIN');
+    const isRequesterSuperAdmin = requester?.roles?.includes('SUPER_ADMIN');
+
+    if (isTargetSuperAdmin && !isRequesterSuperAdmin) {
+      throw new ForbiddenException('Administrators cannot modify Super Administrators.');
+    }
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -323,8 +369,19 @@ export class UsersService {
     return { id: updated.id, status: updated.status };
   }
 
-  async remove(id: string, actorId?: string) {
-    await this.findOne(id);
+  async remove(id: string, actorId?: string, requester?: AuthenticatedUser) {
+    const user = await this.findOne(id, requester);
+    const isTargetSuperAdmin = user.roles.some((r) => r.name === 'SUPER_ADMIN');
+    const isRequesterSuperAdmin = requester?.roles?.includes('SUPER_ADMIN');
+
+    if (isTargetSuperAdmin) {
+      if (!isRequesterSuperAdmin) {
+        throw new ForbiddenException('Administrators cannot delete or archive Super Administrators.');
+      }
+      if (requester?.id === id) {
+        throw new BadRequestException('You cannot archive your own Super Administrator account.');
+      }
+    }
 
     await this.prisma.user.update({
       where: { id },
@@ -350,16 +407,22 @@ export class UsersService {
     return { success: true, message: 'User archived successfully.' };
   }
 
-  async getMetrics() {
+  async getMetrics(requester?: AuthenticatedUser) {
+    const isSuperAdmin = requester?.roles?.includes('SUPER_ADMIN');
+    const baseWhere: Prisma.UserWhereInput = {
+      deletedAt: null,
+      ...(!isSuperAdmin ? { userRoles: { none: { role: { name: 'SUPER_ADMIN' } } } } : {}),
+    };
+
     const [totalUsers, activeUsers, totalAdmins] = await Promise.all([
-      this.prisma.user.count({ where: { deletedAt: null } }),
-      this.prisma.user.count({ where: { status: UserStatus.ACTIVE, deletedAt: null } }),
+      this.prisma.user.count({ where: baseWhere }),
+      this.prisma.user.count({ where: { ...baseWhere, status: UserStatus.ACTIVE } }),
       this.prisma.user.count({
         where: {
-          deletedAt: null,
+          ...baseWhere,
           userRoles: {
             some: {
-              role: { name: { in: ['SUPER_ADMIN', 'ADMIN'] } },
+              role: { name: isSuperAdmin ? { in: ['SUPER_ADMIN', 'ADMIN'] } : 'ADMIN' },
             },
           },
         },

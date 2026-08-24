@@ -64,3 +64,29 @@ export class TeamMemberFinanceQueryDto {
   @IsOptional()
   endDate?: Date;
 }
+
+export enum PaymentReminderStatusFilter {
+  ALL = 'ALL',
+  OVERDUE = 'OVERDUE',
+  DUE_TODAY = 'DUE_TODAY',
+  UPCOMING = 'UPCOMING',
+}
+
+export class PaymentReminderQueryDto {
+  @ApiPropertyOptional({ enum: PaymentReminderStatusFilter, default: PaymentReminderStatusFilter.ALL, description: 'Filter reminders by urgency status' })
+  @IsEnum(PaymentReminderStatusFilter)
+  @IsOptional()
+  status?: PaymentReminderStatusFilter = PaymentReminderStatusFilter.ALL;
+
+  @ApiPropertyOptional({ description: 'Number of days ahead to look for upcoming payments', default: 7 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  daysAhead?: number = 7;
+
+  @ApiPropertyOptional({ description: 'Filter for a specific project ID' })
+  @IsString()
+  @IsOptional()
+  projectId?: string;
+}

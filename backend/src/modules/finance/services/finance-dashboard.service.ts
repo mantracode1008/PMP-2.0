@@ -3,8 +3,34 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import {
   FinanceDashboardQueryDto,
+  PaymentReminderQueryDto,
+  PaymentReminderStatusFilter,
   TeamMemberFinanceQueryDto,
 } from '../dto/finance-query.dto';
+
+export interface PaymentReminderItem {
+  id: string; // Project ID
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  projectStatus: string;
+  client: {
+    id: string;
+    name: string;
+    companyName: string;
+    email: string;
+    phone?: string | null;
+  } | null;
+  currency: string;
+  projectValue: number;
+  received: number;
+  pending: number;
+  nextPaymentDueDate: Date;
+  nextPaymentAmount: number | null;
+  paymentReminderNotes: string | null;
+  urgencyStatus: 'OVERDUE' | 'DUE_TODAY' | 'UPCOMING';
+  daysRemaining: number; // negative for overdue, 0 for today, positive for upcoming
+}
 
 @Injectable()
 export class FinanceDashboardService {
@@ -38,7 +64,7 @@ export class FinanceDashboardService {
       where: whereProject,
       include: {
         client: {
-          select: { id: true, name: true, companyName: true },
+          select: { id: true, name: true, companyName: true, email: true, phone: true },
         },
         financialSettings: true,
         clientPayments: {
@@ -84,6 +110,9 @@ export class FinanceDashboardService {
         expenses,
         currentCash,
         expectedProfit,
+        nextPaymentDueDate: p.financialSettings?.nextPaymentDueDate ?? null,
+        nextPaymentAmount: p.financialSettings?.nextPaymentAmount ?? null,
+        paymentReminderNotes: p.financialSettings?.paymentReminderNotes ?? null,
         paymentCount: p.clientPayments.length,
         expenseCount: p.expenses.length,
         isFullyPaid: projectValue > 0 && received >= projectValue,
@@ -93,6 +122,12 @@ export class FinanceDashboardService {
     const totalPending = Math.max(0, totalProjectValue - totalReceived);
     const totalCashPosition = totalReceived - totalExpenses;
     const totalExpectedProfit = totalProjectValue - totalExpenses;
+
+    // 3. Compute Payment Reminders Summary
+    const remindersData = await this.getPaymentReminders({
+      status: PaymentReminderStatusFilter.ALL,
+      daysAhead: 7,
+    });
 
     // Apply pagination to the table list
     const page = query.page ?? 1;
@@ -111,6 +146,8 @@ export class FinanceDashboardService {
         totalProjects: projects.length,
         projectsWithFinances: projectSummaries.filter((p) => p.projectValue > 0 || p.received > 0).length,
       },
+      paymentRemindersSummary: remindersData.summary,
+      urgentPaymentReminders: remindersData.reminders.slice(0, 5),
       projects: paginatedProjects,
       pagination: {
         page,
@@ -118,6 +155,130 @@ export class FinanceDashboardService {
         totalItems: projectSummaries.length,
         totalPages: Math.ceil(projectSummaries.length / limit),
       },
+    };
+  }
+
+  /**
+   * Client Payment Due Date Alerts & Reminders for Super Admin Dashboard.
+   */
+  async getPaymentReminders(query: PaymentReminderQueryDto) {
+    const whereProject: Prisma.ProjectWhereInput = {
+      deletedAt: null,
+      financialSettings: {
+        nextPaymentDueDate: { not: null },
+      },
+    };
+
+    if (query.projectId) {
+      whereProject.id = query.projectId;
+    }
+
+    const projects = await this.prisma.project.findMany({
+      where: whereProject,
+      include: {
+        client: {
+          select: { id: true, name: true, companyName: true, email: true, phone: true },
+        },
+        financialSettings: true,
+        clientPayments: {
+          where: { deletedAt: null },
+          select: { amount: true },
+        },
+      },
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const daysAhead = query.daysAhead ?? 7;
+    const upcomingThreshold = new Date(today);
+    upcomingThreshold.setDate(upcomingThreshold.getDate() + daysAhead);
+    upcomingThreshold.setHours(23, 59, 59, 999);
+
+    const allReminders: PaymentReminderItem[] = [];
+
+    for (const p of projects) {
+      if (!p.financialSettings || !p.financialSettings.nextPaymentDueDate) continue;
+
+      const projectValue = p.financialSettings.projectValue ?? 0;
+      const received = p.clientPayments.reduce((acc, pay) => acc + pay.amount, 0);
+      const pending = Math.max(0, projectValue - received);
+
+      // Skip if project is already 100% paid
+      if (projectValue > 0 && pending <= 0) continue;
+
+      const dueDate = new Date(p.financialSettings.nextPaymentDueDate);
+      const dueDateMidnight = new Date(dueDate);
+      dueDateMidnight.setHours(0, 0, 0, 0);
+
+      const diffTime = dueDateMidnight.getTime() - today.getTime();
+      const daysRemaining = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+      let urgencyStatus: 'OVERDUE' | 'DUE_TODAY' | 'UPCOMING';
+
+      if (daysRemaining < 0) {
+        urgencyStatus = 'OVERDUE';
+      } else if (daysRemaining === 0) {
+        urgencyStatus = 'DUE_TODAY';
+      } else {
+        urgencyStatus = 'UPCOMING';
+      }
+
+      // Filter by daysAhead for upcoming (still keep overdue & due today)
+      if (urgencyStatus === 'UPCOMING' && dueDateMidnight > upcomingThreshold) {
+        continue;
+      }
+
+      allReminders.push({
+        id: p.id,
+        projectId: p.id,
+        projectCode: p.code,
+        projectName: p.name,
+        projectStatus: p.status,
+        client: p.client,
+        currency: p.financialSettings.currency || 'INR',
+        projectValue,
+        received,
+        pending,
+        nextPaymentDueDate: dueDate,
+        nextPaymentAmount: p.financialSettings.nextPaymentAmount ?? (pending > 0 ? pending : null),
+        paymentReminderNotes: p.financialSettings.paymentReminderNotes ?? null,
+        urgencyStatus,
+        daysRemaining,
+      });
+    }
+
+    // Sort: OVERDUE first (most overdue first), then DUE_TODAY, then UPCOMING (closest date first)
+    allReminders.sort((a, b) => {
+      const priorityOrder = { OVERDUE: 1, DUE_TODAY: 2, UPCOMING: 3 };
+      if (priorityOrder[a.urgencyStatus] !== priorityOrder[b.urgencyStatus]) {
+        return priorityOrder[a.urgencyStatus] - priorityOrder[b.urgencyStatus];
+      }
+      return a.nextPaymentDueDate.getTime() - b.nextPaymentDueDate.getTime();
+    });
+
+    const overdueCount = allReminders.filter((r) => r.urgencyStatus === 'OVERDUE').length;
+    const dueTodayCount = allReminders.filter((r) => r.urgencyStatus === 'DUE_TODAY').length;
+    const dueSoonCount = allReminders.filter((r) => r.urgencyStatus === 'UPCOMING').length;
+    const totalAmountDue = allReminders.reduce(
+      (acc, r) => acc + (r.nextPaymentAmount || r.pending),
+      0,
+    );
+
+    let filteredReminders = allReminders;
+    if (query.status && query.status !== PaymentReminderStatusFilter.ALL) {
+      filteredReminders = allReminders.filter((r) => r.urgencyStatus === query.status);
+    }
+
+    return {
+      summary: {
+        totalReminders: allReminders.length,
+        overdueCount,
+        dueTodayCount,
+        dueSoonCount,
+        totalAmountDue,
+      },
+      reminders: filteredReminders,
     };
   }
 
@@ -262,6 +423,8 @@ export class FinanceDashboardService {
       'Project Value',
       'Received',
       'Pending',
+      'Next Payment Due',
+      'Next Payment Amount',
       'Expenses',
       'Cash Position',
       'Expected Profit',
@@ -276,6 +439,8 @@ export class FinanceDashboardService {
       p.projectValue,
       p.received,
       p.pending,
+      p.nextPaymentDueDate ? new Date(p.nextPaymentDueDate).toISOString().split('T')[0] : 'N/A',
+      p.nextPaymentAmount ?? 'N/A',
       p.expenses,
       p.currentCash,
       p.expectedProfit,
@@ -285,3 +450,4 @@ export class FinanceDashboardService {
     return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
   }
 }
+

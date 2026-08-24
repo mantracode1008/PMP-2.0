@@ -138,11 +138,23 @@ export class ProjectFinancialsService {
       update: {
         projectValue: dto.projectValue,
         currency: dto.currency || previousSettings?.currency || 'INR',
+        ...(dto.nextPaymentDueDate !== undefined && {
+          nextPaymentDueDate: dto.nextPaymentDueDate ? new Date(dto.nextPaymentDueDate) : null,
+        }),
+        ...(dto.nextPaymentAmount !== undefined && {
+          nextPaymentAmount: dto.nextPaymentAmount,
+        }),
+        ...(dto.paymentReminderNotes !== undefined && {
+          paymentReminderNotes: dto.paymentReminderNotes,
+        }),
       },
       create: {
         projectId,
         projectValue: dto.projectValue,
         currency: dto.currency || 'INR',
+        nextPaymentDueDate: dto.nextPaymentDueDate ? new Date(dto.nextPaymentDueDate) : null,
+        nextPaymentAmount: dto.nextPaymentAmount ?? null,
+        paymentReminderNotes: dto.paymentReminderNotes ?? null,
         createdById: actorId,
       },
     });
@@ -201,11 +213,23 @@ export class ProjectFinancialsService {
       update: {
         ...(dto.projectValue !== undefined && { projectValue: dto.projectValue }),
         ...(dto.currency && { currency: dto.currency }),
+        ...(dto.nextPaymentDueDate !== undefined && {
+          nextPaymentDueDate: dto.nextPaymentDueDate ? new Date(dto.nextPaymentDueDate) : null,
+        }),
+        ...(dto.nextPaymentAmount !== undefined && {
+          nextPaymentAmount: dto.nextPaymentAmount,
+        }),
+        ...(dto.paymentReminderNotes !== undefined && {
+          paymentReminderNotes: dto.paymentReminderNotes,
+        }),
       },
       create: {
         projectId,
         projectValue: dto.projectValue ?? 0,
         currency: dto.currency || 'INR',
+        nextPaymentDueDate: dto.nextPaymentDueDate ? new Date(dto.nextPaymentDueDate) : null,
+        nextPaymentAmount: dto.nextPaymentAmount ?? null,
+        paymentReminderNotes: dto.paymentReminderNotes ?? null,
         createdById: actorId,
       },
     });

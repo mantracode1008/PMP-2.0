@@ -31,7 +31,13 @@ import { AddEditProjectExpenseModal } from './AddEditProjectExpenseModal';
 interface ProjectFinancialsTabProps {
   financialData: ProjectFinancialResponse;
   teamMembers?: { id: string; name: string; email: string }[];
-  onSetProjectValue: (data: { projectValue: number; currency: string }) => Promise<void>;
+  onSetProjectValue: (data: {
+    projectValue: number;
+    currency: string;
+    nextPaymentDueDate?: string | null;
+    nextPaymentAmount?: number | null;
+    paymentReminderNotes?: string | null;
+  }) => Promise<void>;
   onAddPayment: (data: any) => Promise<void>;
   onUpdatePayment: (paymentId: string, data: any) => Promise<void>;
   onDeletePayment: (paymentId: string) => Promise<void>;
@@ -271,6 +277,74 @@ export function ProjectFinancialsTab({
           </div>
         </div>
       </div>
+
+      {/* Next Client Payment Due Date Alert Banner */}
+      {financialData.financialSettings?.nextPaymentDueDate && metrics.remainingAmount > 0 && (
+        (() => {
+          const dueDate = new Date(financialData.financialSettings.nextPaymentDueDate);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const dueMidnight = new Date(dueDate);
+          dueMidnight.setHours(0, 0, 0, 0);
+          const diffDays = Math.round((dueMidnight.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          const isOverdue = diffDays < 0;
+          const isToday = diffDays === 0;
+
+          return (
+            <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs ${
+              isOverdue
+                ? 'bg-rose-50/70 border-rose-200 text-rose-900'
+                : isToday
+                ? 'bg-amber-50/70 border-amber-200 text-amber-900'
+                : 'bg-indigo-50/60 border-indigo-200 text-indigo-900'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  isOverdue ? 'bg-rose-100 text-rose-700' : isToday ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
+                }`}>
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      {isOverdue ? '⚠️ Payment Overdue' : isToday ? '⏰ Payment Due Today' : '📅 Scheduled Client Payment'}
+                    </span>
+                    <span className="text-xs font-semibold">
+                      • Due on {dueDate.toLocaleDateString()} ({isOverdue ? `${Math.abs(diffDays)} days overdue` : isToday ? 'Today' : `in ${diffDays} days`})
+                    </span>
+                  </div>
+                  <p className="text-xs opacity-80 mt-0.5">
+                    {financialData.financialSettings.nextPaymentAmount
+                      ? `Expected Installment: ${formatMoney(financialData.financialSettings.nextPaymentAmount)}`
+                      : `Pending Receivable: ${formatMoney(metrics.remainingAmount)}`}
+                    {financialData.financialSettings.paymentReminderNotes ? ` • "${financialData.financialSettings.paymentReminderNotes}"` : ''}
+                  </p>
+                </div>
+              </div>
+
+              {canManage && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      setPaymentToEdit(null);
+                      setIsPaymentModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-gray-800 shadow-2xs border border-gray-200 hover:bg-gray-50 transition-colors"
+                  >
+                    + Record Payment
+                  </button>
+                  <button
+                    onClick={() => setIsValueModalOpen(true)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-blue-700 hover:bg-blue-50 transition-colors"
+                  >
+                    Reschedule
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()
+      )}
 
       {/* ----------------------------------------------------------- */}
       {/* 2. SUB-NAVIGATION TABS */}
@@ -813,6 +887,9 @@ export function ProjectFinancialsTab({
           currentValue={metrics.projectValue}
           currency={currency}
           totalReceived={metrics.totalReceived}
+          initialNextPaymentDueDate={financialData.financialSettings?.nextPaymentDueDate}
+          initialNextPaymentAmount={financialData.financialSettings?.nextPaymentAmount}
+          initialPaymentReminderNotes={financialData.financialSettings?.paymentReminderNotes}
           onSave={onSetProjectValue}
         />
       )}

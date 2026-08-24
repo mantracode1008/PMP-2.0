@@ -10,7 +10,7 @@ import { Input } from '../../../components/ui/input';
 import { StatusBadge } from '../../../components/shared/status-badge';
 import { useToast } from '../../../components/ui/toast';
 import { getInitials, formatDate } from '../../../lib/utils';
-import { User, Lock, Shield, Mail, Phone, Building } from 'lucide-react';
+import { User, Lock, Mail, Phone, Building } from 'lucide-react';
 
 export default function ProfilePage() {
   const { user, refreshProfile, isSuperAdmin } = useAuth();
@@ -30,17 +30,18 @@ export default function ProfilePage() {
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    setIsUpdatingProfile(true);
+
     try {
+      setIsUpdatingProfile(true);
       await api.patch(`/users/${user.id}`, {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        phone: phone.trim() || undefined,
+        firstName,
+        lastName,
+        phone: phone || undefined,
       });
       await refreshProfile();
-      showToast('Success', 'Profile updated successfully.', 'success');
+      showToast('Profile Updated', 'Your profile details have been saved.', 'success');
     } catch (err: any) {
-      showToast('Error', err.response?.data?.message || 'Failed to update profile.', 'error');
+      showToast('Update Failed', err.response?.data?.message || 'Failed to update profile.', 'error');
     } finally {
       setIsUpdatingProfile(false);
     }
@@ -52,23 +53,19 @@ export default function ProfilePage() {
       showToast('Validation Error', 'New passwords do not match.', 'error');
       return;
     }
-    if (newPassword.length < 8) {
-      showToast('Validation Error', 'New password must be at least 8 characters long.', 'error');
-      return;
-    }
 
-    setIsChangingPassword(true);
     try {
+      setIsChangingPassword(true);
       await api.post('/auth/change-password', {
         currentPassword,
         newPassword,
       });
-      showToast('Success', 'Password changed successfully. Please keep your new credentials secure.', 'success');
+      showToast('Password Changed', 'Your security password has been updated.', 'success');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      showToast('Error', err.response?.data?.message || 'Failed to change password.', 'error');
+      showToast('Change Failed', err.response?.data?.message || 'Failed to update password.', 'error');
     } finally {
       setIsChangingPassword(false);
     }
@@ -78,7 +75,7 @@ export default function ProfilePage() {
     <div className="max-w-4xl space-y-8 animate-in fade-in duration-200">
       <PageHeader
         title="My Profile & Security"
-        description="Manage your account profile details, credentials, and inspect active permission tokens."
+        description="Manage your account profile details and security credentials."
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Profile' }]}
       />
 
@@ -91,50 +88,67 @@ export default function ProfilePage() {
                 {getInitials(user?.firstName, user?.lastName, user?.email)}
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">{user?.firstName} {user?.lastName}</h3>
+                <h3 className="text-base font-bold text-slate-900">
+                  {user?.firstName} {user?.lastName}
+                </h3>
                 <p className="text-xs text-slate-500">{user?.email}</p>
               </div>
 
               <div className="flex items-center justify-center gap-2">
-                <StatusBadge status={user?.status} type="user" />
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                  {isSuperAdmin ? 'Super Administrator' : user?.roles?.[0]?.displayName || 'Member'}
-                </span>
+                <StatusBadge status={user?.status as any} type="user" />
+                {user?.roles?.map((r: any, idx: number) => {
+                  const roleName = typeof r === 'string' ? r : r.displayName || r.name;
+                  const roleKey = typeof r === 'string' ? `${r}-${idx}` : (r.id || `${r.name}-${idx}`);
+                  return (
+                    <span
+                      key={roleKey}
+                      className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60"
+                    >
+                      {roleName}
+                    </span>
+                  );
+                })}
               </div>
 
               <div className="pt-4 border-t border-slate-100 space-y-2.5 text-left text-xs">
+                <div className="flex items-center justify-between text-slate-600">
+                  <span className="flex items-center gap-1.5 text-slate-500">
+                    <Mail className="h-3.5 w-3.5" /> Email
+                  </span>
+                  <span className="font-medium text-slate-900">{user?.email}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span className="flex items-center gap-1.5 text-slate-500">
+                    <Phone className="h-3.5 w-3.5" /> Phone
+                  </span>
+                  <span className="font-medium text-slate-900">{user?.phone || '—'}</span>
+                </div>
                 <div className="flex items-center justify-between text-slate-600">
                   <span className="flex items-center gap-1.5 text-slate-500">
                     <Building className="h-3.5 w-3.5" /> Department
                   </span>
                   <span className="font-medium text-slate-900">{user?.department?.name || 'Unassigned'}</span>
                 </div>
-                <div className="flex items-center justify-between text-slate-600">
-                  <span className="flex items-center gap-1.5 text-slate-500">
-                    <Mail className="h-3.5 w-3.5" /> Work Email
-                  </span>
-                  <span className="font-medium text-slate-900">{user?.email}</span>
-                </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Edit Form & Password Form */}
+        {/* Right Section: Edit Profile & Password Form */}
         <div className="md:col-span-2 space-y-6">
-          {/* Personal Details */}
+          {/* Personal Information */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <User className="h-4 w-4 text-indigo-600" /> Personal Information
+                <User className="h-4 w-4 text-indigo-600" /> Personal Details
               </CardTitle>
-              <CardDescription>Update your public account profile details</CardDescription>
+              <CardDescription>Update your public facing profile information</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleUpdateProfile} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">First Name</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">First Name</label>
                     <Input
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
@@ -142,7 +156,7 @@ export default function ProfilePage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Last Name</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">Last Name</label>
                     <Input
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
@@ -152,17 +166,24 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email Address</label>
+                  <Input value={user?.email || ''} disabled className="bg-slate-50 cursor-not-allowed" />
+                  <p className="mt-1 text-[11px] text-slate-400">Email cannot be modified directly.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Phone Number</label>
                   <Input
+                    type="tel"
+                    placeholder="+1 (555) 000-0000"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+1 (555) 000-0000"
                   />
                 </div>
 
                 <div className="flex justify-end pt-2">
                   <Button type="submit" size="sm" isLoading={isUpdatingProfile}>
-                    Save Profile Changes
+                    Save Changes
                   </Button>
                 </div>
               </form>
@@ -173,14 +194,14 @@ export default function ProfilePage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Lock className="h-4 w-4 text-indigo-600" /> Change Security Password
+                <Lock className="h-4 w-4 text-indigo-600" /> Security & Password
               </CardTitle>
               <CardDescription>Ensure your account uses a strong, unique password</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleChangePassword} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Current Password</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Current Password</label>
                   <Input
                     type="password"
                     placeholder="••••••••"
@@ -190,21 +211,20 @@ export default function ProfilePage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">New Password</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">New Password</label>
                     <Input
                       type="password"
-                      placeholder="Min 8 characters"
+                      placeholder="Minimum 8 characters"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       required
                       minLength={8}
                     />
                   </div>
-
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Confirm New Password</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">Confirm New Password</label>
                     <Input
                       type="password"
                       placeholder="Repeat new password"
@@ -222,28 +242,6 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
-
-          {/* Active Permission Tokens */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4 text-indigo-600" /> Active Permissions
-              </CardTitle>
-              <CardDescription>Permissions granted to your current session based on assigned roles</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-1.5">
-                {user?.permissions?.map((p, idx) => (
-                  <span
-                    key={idx}
-                    className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200"
-                  >
-                    {p}
-                  </span>
-                ))}
-              </div>
             </CardContent>
           </Card>
         </div>

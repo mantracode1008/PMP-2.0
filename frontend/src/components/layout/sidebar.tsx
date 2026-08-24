@@ -14,14 +14,12 @@ import {
   UserCheck,
   Building,
   ShieldCheck,
-  Settings,
   User,
   LogOut,
   FolderGit2,
   Clock,
   FileSpreadsheet,
   BarChart3,
-  FolderKanban,
   FileCheck2,
   DollarSign,
   FileText,
@@ -43,7 +41,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'My Work', href: '/my-work', icon: CheckSquare, section: 'main' },
   { label: 'My Timesheets', href: '/my-timesheets', icon: Clock, section: 'main' },
   { label: 'Projects', href: '/projects', icon: Briefcase, permission: 'projects.read', section: 'main' },
-  { label: 'Templates', href: '/templates', icon: FolderKanban, permission: 'templates.read', section: 'main' },
   { label: 'Clients', href: '/clients', icon: Building2, permission: 'clients.read', section: 'main' },
   { label: 'Teams', href: '/teams', icon: Users2, permission: 'teams.read', section: 'main' },
   { label: 'Departments', href: '/departments', icon: Building, permission: 'departments.read', section: 'main' },
@@ -60,7 +57,6 @@ const NAV_ITEMS: NavItem[] = [
 
   // Settings Section
   { label: 'Profile', href: '/profile', icon: User, section: 'settings' },
-  { label: 'Settings', href: '/settings', icon: Settings, section: 'settings' },
 ];
 
 export function Sidebar() {

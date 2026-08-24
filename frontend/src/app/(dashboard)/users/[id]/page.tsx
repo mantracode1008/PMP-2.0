@@ -33,7 +33,7 @@ export default function UserDetailPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const { hasPermission } = useAuth();
+  const { hasPermission, isSuperAdmin, user: currentUser } = useAuth();
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
@@ -122,6 +122,10 @@ export default function UserDetailPage() {
     );
   }
 
+  const isTargetSuperAdmin = user.roles?.some((r) => r.name === 'SUPER_ADMIN');
+  const canUpdateThisUser = canUpdate && (!isTargetSuperAdmin || isSuperAdmin || currentUser?.id === user.id);
+  const canArchiveThisUser = canDelete && (!isTargetSuperAdmin || isSuperAdmin) && currentUser?.id !== user.id;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
       <PageHeader
@@ -134,12 +138,12 @@ export default function UserDetailPage() {
         ]}
         action={
           <div className="flex items-center gap-2">
-            {canUpdate && (
+            {canUpdateThisUser && (
               <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)}>
                 <Edit2 className="mr-1.5 h-3.5 w-3.5" /> Edit Profile
               </Button>
             )}
-            {canDelete && (
+            {canArchiveThisUser && (
               <Button
                 variant="outline"
                 size="sm"
@@ -316,11 +320,13 @@ export default function UserDetailPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Role</label>
               <Select value={editRole} onChange={(e) => setEditRole(e.target.value)}>
-                {roles?.map((r) => (
-                  <option key={r.id} value={r.name}>
-                    {r.displayName || r.name}
-                  </option>
-                ))}
+                {roles
+                  ?.filter((r) => isSuperAdmin || r.name !== 'SUPER_ADMIN')
+                  .map((r) => (
+                    <option key={r.id} value={r.name}>
+                      {r.displayName || r.name}
+                    </option>
+                  ))}
               </Select>
             </div>
           </div>

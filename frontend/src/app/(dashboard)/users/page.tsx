@@ -17,7 +17,7 @@ import { Plus, UserCheck, Trash2, Edit2, Shield } from 'lucide-react';
 import { ApiResponse, Department, User, UserStatus } from '../../../types';
 
 export default function UsersPage() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
 
@@ -128,8 +128,9 @@ export default function UsersPage() {
     },
     {
       header: 'Status',
-      cell: (u) => (
-        canManageStatus ? (
+      cell: (u) => {
+        const isUserSuperAdmin = u.roles?.some((r) => r.name === 'SUPER_ADMIN');
+        return canManageStatus && (!isUserSuperAdmin || isSuperAdmin) ? (
           <select
             value={u.status}
             onChange={(e) => statusMutation.mutate({ userId: u.id, status: e.target.value as UserStatus })}
@@ -141,8 +142,8 @@ export default function UsersPage() {
           </select>
         ) : (
           <StatusBadge status={u.status} type="user" />
-        )
-      ),
+        );
+      },
     },
     {
       header: 'Last Active',
@@ -150,26 +151,31 @@ export default function UsersPage() {
     },
     {
       header: 'Actions',
-      cell: (u) => (
-        <div className="flex items-center gap-1.5">
-          <Link href={`/users/${u.id}`}>
-            <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-              <Edit2 className="h-3 w-3 mr-1" /> View
-            </Button>
-          </Link>
-          {canDelete && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-50 border-rose-200"
-              onClick={() => setUserToArchive(u)}
-              title="Archive user"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </div>
-      ),
+      cell: (u) => {
+        const isUserSuperAdmin = u.roles?.some((r) => r.name === 'SUPER_ADMIN');
+        const canArchiveThisUser = canDelete && (!isUserSuperAdmin || isSuperAdmin);
+
+        return (
+          <div className="flex items-center gap-1.5">
+            <Link href={`/users/${u.id}`}>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                <Edit2 className="h-3 w-3 mr-1" /> View
+              </Button>
+            </Link>
+            {canArchiveThisUser && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-50 border-rose-200"
+                onClick={() => setUserToArchive(u)}
+                title="Archive user"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 

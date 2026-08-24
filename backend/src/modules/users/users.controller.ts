@@ -19,6 +19,7 @@ import {
 } from './dto/create-user.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -29,29 +30,29 @@ export class UsersController {
   @Get('metrics')
   @RequirePermissions('users.read')
   @ApiOperation({ summary: 'Get high-level user count metrics' })
-  getMetrics() {
-    return this.usersService.getMetrics();
+  getMetrics(@CurrentUser() actor: AuthenticatedUser) {
+    return this.usersService.getMetrics(actor);
   }
 
   @Get()
   @RequirePermissions('users.read')
   @ApiOperation({ summary: 'List users with pagination, filters, and search' })
-  findAll(@Query() query: UserQueryDto) {
-    return this.usersService.findAll(query);
+  findAll(@Query() query: UserQueryDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.usersService.findAll(query, actor);
   }
 
   @Get(':id')
   @RequirePermissions('users.read')
   @ApiOperation({ summary: 'Get user details by ID' })
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.usersService.findOne(id, actor);
   }
 
   @Post()
   @RequirePermissions('users.create')
   @ApiOperation({ summary: 'Create a new user with role and department assignment' })
-  create(@Body() dto: CreateUserDto, @CurrentUser('id') actorId: string) {
-    return this.usersService.create(dto, actorId);
+  create(@Body() dto: CreateUserDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.usersService.create(dto, actor?.id, actor);
   }
 
   @Patch(':id')
@@ -60,9 +61,9 @@ export class UsersController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
-    @CurrentUser('id') actorId: string,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.usersService.update(id, dto, actorId);
+    return this.usersService.update(id, dto, actor?.id, actor);
   }
 
   @Put(':id/status')
@@ -71,15 +72,15 @@ export class UsersController {
   updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateUserStatusDto,
-    @CurrentUser('id') actorId: string,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.usersService.updateStatus(id, dto, actorId);
+    return this.usersService.updateStatus(id, dto, actor?.id, actor);
   }
 
   @Delete(':id')
   @RequirePermissions('users.delete')
   @ApiOperation({ summary: 'Soft-delete and archive user account' })
-  remove(@Param('id') id: string, @CurrentUser('id') actorId: string) {
-    return this.usersService.remove(id, actorId);
+  remove(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.usersService.remove(id, actor?.id, actor);
   }
 }

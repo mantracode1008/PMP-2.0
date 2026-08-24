@@ -8,6 +8,7 @@ import {
   ProjectStatus,
 } from '../../../types';
 import { FinanceMetricsCards } from './FinanceMetricsCards';
+import { PaymentRemindersCard } from './PaymentRemindersCard';
 import { Input } from '../../../components/ui/input';
 import { Button } from '../../../components/ui/button';
 import {
@@ -108,6 +109,11 @@ export function FinanceDashboardView({
       <FinanceMetricsCards metrics={metrics} />
 
       {/* ----------------------------------------------------------- */}
+      {/* 2.5 CLIENT PAYMENT DUE ALERTS & REMINDERS */}
+      {/* ----------------------------------------------------------- */}
+      <PaymentRemindersCard />
+
+      {/* ----------------------------------------------------------- */}
       {/* 3. PROJECT FINANCIAL OVERVIEW TABLE */}
       {/* ----------------------------------------------------------- */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -172,6 +178,7 @@ export function FinanceDashboardView({
                   <th className="px-4 py-3 text-right">Project Value</th>
                   <th className="px-4 py-3 text-right">Received</th>
                   <th className="px-4 py-3 text-right">Pending</th>
+                  <th className="px-4 py-3">Next Due Date</th>
                   <th className="px-4 py-3 text-right">Expenses</th>
                   <th className="px-4 py-3 text-right">Current Cash</th>
                   <th className="px-4 py-3 text-right">Expected Profit</th>
@@ -182,11 +189,19 @@ export function FinanceDashboardView({
               <tbody className="divide-y divide-gray-100">
                 {projects.map((p) => {
                   const curr = p.currency || 'INR';
+                  const hasDueDate = !!p.nextPaymentDueDate;
+                  const isOverdue =
+                    hasDueDate &&
+                    p.pending > 0 &&
+                    new Date(p.nextPaymentDueDate!).getTime() < new Date().setHours(0, 0, 0, 0);
+
                   return (
                     <tr
                       key={p.id}
                       onClick={() => router.push(`/projects/${p.id}`)}
-                      className="hover:bg-gray-50/80 transition-colors cursor-pointer group"
+                      className={`hover:bg-gray-50/80 transition-colors cursor-pointer group ${
+                        isOverdue ? 'bg-rose-50/20' : ''
+                      }`}
                     >
                       {/* Project Name & Code */}
                       <td className="px-4 py-3">
@@ -217,6 +232,29 @@ export function FinanceDashboardView({
                       {/* Pending */}
                       <td className="px-4 py-3 text-right font-semibold text-amber-600">
                         {formatMoney(p.pending, curr)}
+                      </td>
+
+                      {/* Next Payment Due Date */}
+                      <td className="px-4 py-3">
+                        {p.nextPaymentDueDate && p.pending > 0 ? (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1 text-[11px] font-semibold text-gray-900">
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full ${
+                                isOverdue ? 'bg-rose-500 animate-pulse' : 'bg-blue-500'
+                              }`} />
+                              <span>{new Date(p.nextPaymentDueDate).toLocaleDateString()}</span>
+                            </div>
+                            {p.nextPaymentAmount ? (
+                              <div className="text-[10px] text-gray-500">
+                                Exp: {formatMoney(p.nextPaymentAmount, curr)}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-gray-400">
+                            {p.isFullyPaid ? 'Settled' : 'Not set'}
+                          </span>
+                        )}
                       </td>
 
                       {/* Expenses */}

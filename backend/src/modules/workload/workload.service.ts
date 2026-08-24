@@ -147,6 +147,12 @@ export class WorkloadService {
       ];
     }
 
+    if (!user.roles.includes('SUPER_ADMIN')) {
+      userWhere.userRoles = {
+        none: { role: { name: 'SUPER_ADMIN' } },
+      };
+    }
+
     if (!this.isElevatedUser(user)) {
       // Non-admins can only see users from their own shared projects or teams
       const myProjects = await this.prisma.projectMember.findMany({

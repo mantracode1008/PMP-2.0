@@ -1143,21 +1143,27 @@ model ProjectBaselineSnapshot {
 }
 
 model ProjectFinancial {
-  id           String    @id @default(cuid())
-  projectId    String    @unique
-  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                   String    @id @default(cuid())
+  projectId            String    @unique
+  project              Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   
-  currency     String    @default("INR")
-  projectValue Int       @default(0) // Monetary value in integer currency units
+  currency             String    @default("INR")
+  projectValue         Int       @default(0) // Monetary value in integer currency units
   
-  createdById  String
-  createdBy    User      @relation("FinancialSettingsCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  // Next Client Payment Reminder Fields
+  nextPaymentDueDate   DateTime? // Expected date of next client payment
+  nextPaymentAmount    Int?      // Optional expected installment/milestone amount
+  paymentReminderNotes String?   // Notes about payment milestone or schedule
   
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  createdById          String
+  createdBy            User      @relation("FinancialSettingsCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
 
   @@index([projectId])
+  @@index([nextPaymentDueDate])
   @@index([createdById])
   @@index([deletedAt])
 }

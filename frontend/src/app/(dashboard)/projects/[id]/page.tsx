@@ -155,10 +155,18 @@ export default function ProjectWorkspacePage() {
     enabled: !!id && canAccessFinancials && activeTab === 'financials',
   });
 
-  const handleSetProjectValue = async (data: { projectValue: number; currency: string }) => {
+  const handleSetProjectValue = async (data: {
+    projectValue: number;
+    currency: string;
+    nextPaymentDueDate?: string | null;
+    nextPaymentAmount?: number | null;
+    paymentReminderNotes?: string | null;
+  }) => {
     await api.post(`/projects/${id}/financials`, data);
     queryClient.invalidateQueries({ queryKey: ['project-financials', id] });
-    showToast('Success', 'Project financial value updated.', 'success');
+    queryClient.invalidateQueries({ queryKey: ['payment-reminders'] });
+    queryClient.invalidateQueries({ queryKey: ['header-payment-reminders'] });
+    showToast('Success', 'Project financial settings & reminder updated.', 'success');
   };
 
   const handleAddPayment = async (data: any) => {

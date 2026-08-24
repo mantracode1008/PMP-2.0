@@ -1035,6 +1035,9 @@ export interface ProjectFinancial {
   projectId: string;
   currency: string;
   projectValue: number;
+  nextPaymentDueDate?: string | null;
+  nextPaymentAmount?: number | null;
+  paymentReminderNotes?: string | null;
   createdById: string;
   createdAt: string;
   updatedAt: string;
@@ -1147,13 +1150,55 @@ export interface ProjectFinancialSummaryRow {
   expenses: number;
   currentCash: number;
   expectedProfit: number;
+  nextPaymentDueDate?: string | null;
+  nextPaymentAmount?: number | null;
+  paymentReminderNotes?: string | null;
   paymentCount: number;
   expenseCount: number;
   isFullyPaid: boolean;
 }
 
+export interface PaymentReminderItem {
+  id: string;
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  projectStatus: ProjectStatus;
+  client: {
+    id: string;
+    name: string;
+    companyName: string;
+    email: string;
+    phone?: string | null;
+  } | null;
+  currency: string;
+  projectValue: number;
+  received: number;
+  pending: number;
+  nextPaymentDueDate: string;
+  nextPaymentAmount: number | null;
+  paymentReminderNotes: string | null;
+  urgencyStatus: 'OVERDUE' | 'DUE_TODAY' | 'UPCOMING';
+  daysRemaining: number;
+}
+
+export interface PaymentRemindersSummary {
+  totalReminders: number;
+  overdueCount: number;
+  dueTodayCount: number;
+  dueSoonCount: number;
+  totalAmountDue: number;
+}
+
+export interface PaymentRemindersResponse {
+  summary: PaymentRemindersSummary;
+  reminders: PaymentReminderItem[];
+}
+
 export interface FinanceDashboardResponse {
   metrics: GlobalFinancialMetrics;
+  paymentRemindersSummary?: PaymentRemindersSummary;
+  urgentPaymentReminders?: PaymentReminderItem[];
   projects: ProjectFinancialSummaryRow[];
   pagination: {
     page: number;

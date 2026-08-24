@@ -27,6 +27,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { ActivityLog, ApiResponse, Project, WeeklyTimesheetGrid, WorkloadData, DeadlineData } from '../../../types';
+import { PaymentRemindersCard } from '../../../features/finance';
 
 export default function DashboardPage() {
   const { user, isSuperAdmin, isAdmin } = useAuth();
@@ -240,6 +241,11 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Super Admin / Admin: Client Payment Due Alerts */}
+      {isAdmin && (
+        <PaymentRemindersCard compact={true} />
+      )}
 
       {/* Main Grid: Projects Overview & Activity Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

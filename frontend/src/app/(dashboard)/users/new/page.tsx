@@ -10,11 +10,13 @@ import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
 import { Button } from '../../../../components/ui/button';
 import { useToast } from '../../../../components/ui/toast';
+import { useAuth } from '../../../../features/auth/auth-context';
 import { ApiResponse, Department, Role, UserStatus } from '../../../../types';
 
 export default function NewUserPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { isSuperAdmin } = useAuth();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -161,11 +163,13 @@ export default function NewUserPage() {
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">System Role *</label>
                 <Select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
-                  {roles?.map((r) => (
-                    <option key={r.id} value={r.name}>
-                      {r.displayName || r.name}
-                    </option>
-                  ))}
+                  {roles
+                    ?.filter((r) => isSuperAdmin || r.name !== 'SUPER_ADMIN')
+                    .map((r) => (
+                      <option key={r.id} value={r.name}>
+                        {r.displayName || r.name}
+                      </option>
+                    ))}
                 </Select>
               </div>
 
