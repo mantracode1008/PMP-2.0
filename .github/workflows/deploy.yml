@@ -20,124 +20,48 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Execute Deployment on VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST || '145.223.22.204' }}
-          username: ${{ secrets.VPS_USER || secrets.VPS_USERNAME || 'root' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          port: 22
-          timeout: 120s
-          script_stop: true
-          script: |
+      - name: Deploy via Native SSH
+        env:
+          VPS_HOST: "145.223.22.204"
+          VPS_USER: "root"
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -e
+          echo "🔑 Setting up SSH connection to $VPS_HOST..."
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          if [ -n "$VPS_SSH_KEY" ]; then
+            echo "Using SSH Key Authentication..."
+            echo "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            SSH_CMD="ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -i ~/.ssh/id_rsa $VPS_USER@$VPS_HOST"
+          else
+            echo "Using Password Authentication..."
+            sudo apt-get update -y && sudo apt-get install -y sshpass
+            SSH_CMD="sshpass -p '$VPS_PASSWORD' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 $VPS_USER@$VPS_HOST"
+          fi
+
+          echo "🚀 Executing Deployment on VPS..."
+          $SSH_CMD << 'ENDSSH'
             set -e
-
-            # 1. Load Node / NVM / PM2 environment variables into non-interactive shell
-            [ -s "$HOME/.nvm/nvm.sh" ] && \. "$HOME/.nvm/nvm.sh"
-            [ -s "$HOME/.bashrc" ] && \. "$HOME/.bashrc"
-            export PATH=$PATH:/usr/local/bin:/usr/bin:~/.nvm/versions/node/$(ls ~/.nvm/versions/node 2>/dev/null | tail -n 1)/bin
-
-            echo "🚀 Starting PMP Deployment..."
-            node -v || true
-            npm -v || true
-
-            # 2. Ensure PM2 and Git are available
-            command -v pm2 >/dev/null 2>&1 || npm install -g pm2
-            command -v git >/dev/null 2>&1 || (sudo apt update && sudo apt install -y git)
-
-            # 3. Set up project directory and pull with GitHub Token
             DEPLOY_DIR="/var/www/pmp"
             mkdir -p $DEPLOY_DIR
 
             if [ ! -d "$DEPLOY_DIR/.git" ]; then
-              echo "📦 Cloning Repository on VPS..."
-              git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git $DEPLOY_DIR
+              echo "📦 Cloning Repository..."
+              git clone https://github.com/mantracode1008/PMP-2.0.git $DEPLOY_DIR
               cd $DEPLOY_DIR
-              git checkout ${{ github.ref_name }} || true
             else
-              echo "🔄 Pulling latest changes from Git..."
+              echo "🔄 Pulling latest code..."
               cd $DEPLOY_DIR
-              git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
               git fetch origin
-              git checkout ${{ github.ref_name }} || true
-              git reset --hard origin/${{ github.ref_name }}
+              git checkout main || true
+              git reset --hard origin/main
             fi
 
-            # 4. Determine App URLs (Domain or IP)
-            APP_DOMAIN="${{ secrets.DOMAIN }}"
-            if [ -n "$APP_DOMAIN" ]; then
-              FRONTEND_ORIGIN="https://$APP_DOMAIN"
-              API_URL="https://$APP_DOMAIN/api/v1"
-            else
-              FRONTEND_ORIGIN="http://${{ secrets.VPS_HOST }}:3000"
-              API_URL="http://${{ secrets.VPS_HOST }}:4000/api/v1"
-            fi
-
-            echo "🌐 Target Frontend Origin: $FRONTEND_ORIGIN"
-            echo "🌐 Target Backend API URL: $API_URL"
-
-            # 5. Configure Backend Environment
-            mkdir -p $DEPLOY_DIR/backend
-            cat << 'ENVEOF' > $DEPLOY_DIR/backend/.env
-            NODE_ENV=production
-            PORT=4000
-            DATABASE_URL=postgresql://pmp_user:Letvar@1810@localhost:5432/pmp_db?schema=public
-            JWT_SECRET=pmp_jwt_super_secret_key_2026_production
-            JWT_EXPIRES_IN=15m
-            JWT_REFRESH_SECRET=pmp_refresh_super_secret_key_2026_production
-            JWT_REFRESH_EXPIRES_IN=7d
-            SUPER_ADMIN_EMAIL=admin@pmp.local
-            SUPER_ADMIN_PASSWORD=SuperAdmin123!
-            SUPER_ADMIN_FIRST_NAME=System
-            SUPER_ADMIN_LAST_NAME=Super Admin
-            CORS_ORIGIN=https://pmp.letvarsolution.com,http://145.223.22.204:3000,http://localhost:3000
-            ENVEOF
-            sed -i 's/^[[:space:]]*//' $DEPLOY_DIR/backend/.env
-
-            # 6. Configure Frontend Environment
-            mkdir -p $DEPLOY_DIR/frontend
-            cat << 'ENVEOF' > $DEPLOY_DIR/frontend/.env.local
-            NEXT_PUBLIC_API_URL=https://pmp.letvarsolution.com/api/v1
-            ENVEOF
-            sed -i 's/^[[:space:]]*//' $DEPLOY_DIR/frontend/.env.local
-
-            # 7. Install Backend Dependencies & Run Migrations
-            echo "⚙️ Building Backend & Syncing Database..."
-            cd $DEPLOY_DIR/backend
-            npm install --production=false
-            npx prisma generate
-            npx prisma db push
-
-            # Seed database if needed
-            npm run prisma:clean || true
-
-            npm run build
-
-            # 8. Install Frontend Dependencies & Build Next.js App
-            echo "🎨 Building Frontend..."
-            cd $DEPLOY_DIR/frontend
-            npm install --production=false
-            npm run build
-
-            # 9. Restart / Start PM2 Services
-            echo "🔁 Starting / Reloading Services in PM2..."
-            
-            # Start backend if not running, or reload
-            if pm2 describe pmp-backend > /dev/null 2>&1; then
-              pm2 restart pmp-backend --update-env
-            else
-              pm2 start $DEPLOY_DIR/backend/dist/main.js --name "pmp-backend" --cwd $DEPLOY_DIR/backend
-            fi
-
-            # Start frontend if not running, or reload
-            if pm2 describe pmp-frontend > /dev/null 2>&1; then
-              pm2 restart pmp-frontend --update-env
-            else
-              pm2 start npm --name "pmp-frontend" --cwd $DEPLOY_DIR/frontend -- start -- -p 3000
-            fi
-
-            # Save PM2 process list
-            pm2 save
-
-            echo "✅ Deployment Finished Successfully! App running at $FRONTEND_ORIGIN"
+            chmod +x deploy.sh
+            ./deploy.sh
+          ENDSSH
