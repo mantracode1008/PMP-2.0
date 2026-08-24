@@ -8,6 +8,9 @@ on:
       - development
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy to VPS
@@ -22,37 +25,45 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
           password: ${{ secrets.VPS_PASSWORD }}
-          port: ${{ secrets.VPS_PORT || 22 }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
           script_stop: true
           script: |
             set -e
 
-            echo "🚀 Starting PMP Deployment..."
+            # 1. Load Node / NVM / PM2 environment variables into non-interactive shell
+            [ -s "$HOME/.nvm/nvm.sh" ] && \. "$HOME/.nvm/nvm.sh"
+            [ -s "$HOME/.bashrc" ] && \. "$HOME/.bashrc"
+            export PATH=$PATH:/usr/local/bin:/usr/bin:~/.nvm/versions/node/$(ls ~/.nvm/versions/node 2>/dev/null | tail -n 1)/bin
 
-            # 1. Ensure required system packages and tools are installed
+            echo "🚀 Starting PMP Deployment..."
+            node -v
+            npm -v
+
+            # 2. Ensure PM2 and Git are available
             command -v pm2 >/dev/null 2>&1 || npm install -g pm2
             command -v git >/dev/null 2>&1 || (sudo apt update && sudo apt install -y git)
 
-            # 2. Set up project directory
+            # 3. Set up project directory and pull with GitHub Token
             DEPLOY_DIR="/var/www/pmp"
             mkdir -p $DEPLOY_DIR
 
             if [ ! -d "$DEPLOY_DIR/.git" ]; then
-              echo "📦 Initializing Repository on VPS..."
-              git clone https://github.com/${{ github.repository }}.git $DEPLOY_DIR
+              echo "📦 Cloning Repository on VPS..."
+              git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git $DEPLOY_DIR
               cd $DEPLOY_DIR
               git checkout ${{ github.ref_name }} || true
             else
               echo "🔄 Pulling latest changes from Git..."
               cd $DEPLOY_DIR
+              git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
               git fetch origin
               git checkout ${{ github.ref_name }} || true
               git reset --hard origin/${{ github.ref_name }}
             fi
 
-            # 3. Determine App URLs (Domain or IP)
+            # 4. Determine App URLs (Domain or IP)
             APP_DOMAIN="${{ secrets.DOMAIN }}"
             if [ -n "$APP_DOMAIN" ]; then
               FRONTEND_ORIGIN="https://$APP_DOMAIN"
@@ -65,7 +76,7 @@ jobs:
             echo "🌐 Target Frontend Origin: $FRONTEND_ORIGIN"
             echo "🌐 Target Backend API URL: $API_URL"
 
-            # 4. Configure Backend Environment
+            # 5. Configure Backend Environment
             mkdir -p $DEPLOY_DIR/backend
             cat << EOF > $DEPLOY_DIR/backend/.env
 NODE_ENV=production
@@ -85,31 +96,31 @@ SUPER_ADMIN_LAST_NAME="Super Admin"
 CORS_ORIGIN="$FRONTEND_ORIGIN,http://${{ secrets.VPS_HOST }}:3000,http://localhost:3000"
 EOF
 
-            # 5. Configure Frontend Environment
+            # 6. Configure Frontend Environment
             mkdir -p $DEPLOY_DIR/frontend
             cat << EOF > $DEPLOY_DIR/frontend/.env.local
 NEXT_PUBLIC_API_URL="$API_URL"
 EOF
 
-            # 6. Install Backend Dependencies & Run Migrations
+            # 7. Install Backend Dependencies & Run Migrations
             echo "⚙️ Building Backend & Syncing Database..."
             cd $DEPLOY_DIR/backend
             npm install --production=false
             npx prisma generate
             npx prisma db push
 
-            # Seed database if clean seed is needed
+            # Seed database if needed
             npm run prisma:clean || true
 
             npm run build
 
-            # 7. Install Frontend Dependencies & Build Next.js App
+            # 8. Install Frontend Dependencies & Build Next.js App
             echo "🎨 Building Frontend..."
             cd $DEPLOY_DIR/frontend
             npm install --production=false
             npm run build
 
-            # 8. Restart / Start PM2 Services
+            # 9. Restart / Start PM2 Services
             echo "🔁 Starting / Reloading Services in PM2..."
             
             # Start backend if not running, or reload
